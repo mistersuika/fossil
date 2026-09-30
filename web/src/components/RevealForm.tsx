@@ -21,7 +21,7 @@ export function RevealForm({ eventId, revealEnd, onSuccess }: RevealFormProps) {
     if (!address) return;
 
     // Primary key: set by CommitForm or SubmitForm after indexing
-    const stored = localStorage.getItem(`historia_commit_${eventId}_${address}`);
+    const stored = localStorage.getItem(`fossil_commit_${eventId}_${address}`);
     if (stored) {
       try {
         setSavedCommit(JSON.parse(stored) as CommitData);
@@ -30,14 +30,14 @@ export function RevealForm({ eventId, revealEnd, onSuccess }: RevealFormProps) {
     }
 
     // Fallback: proposer's secret saved before indexing completed (SubmitForm pending key)
-    const pending = localStorage.getItem(`historia_pending_${address}`);
+    const pending = localStorage.getItem(`fossil_pending_${address}`);
     if (pending) {
       try {
         const data = JSON.parse(pending) as CommitData;
         // Migrate to the correct key now that we know the eventId
         const withId = { ...data, eventId };
-        localStorage.setItem(`historia_commit_${eventId}_${address}`, JSON.stringify(withId));
-        localStorage.removeItem(`historia_pending_${address}`);
+        localStorage.setItem(`fossil_commit_${eventId}_${address}`, JSON.stringify(withId));
+        localStorage.removeItem(`fossil_pending_${address}`);
         setSavedCommit(withId);
       } catch { /* ignore */ }
     }
@@ -51,7 +51,7 @@ export function RevealForm({ eventId, revealEnd, onSuccess }: RevealFormProps) {
 
     try {
       await revealVote(BigInt(eventId), savedCommit.vote, savedCommit.secret.trim());
-      localStorage.removeItem(`historia_commit_${eventId}_${address}`);
+      localStorage.removeItem(`fossil_commit_${eventId}_${address}`);
       onSuccess?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Transaction failed');

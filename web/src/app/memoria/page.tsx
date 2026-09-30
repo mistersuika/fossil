@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { fetchEvents } from '@/lib/sui';
-import { HistoriaEvent, CATEGORIES, Category } from '@/lib/types';
+import { FossilEvent, CATEGORIES, Category } from '@/lib/types';
 import { SiteHeader } from '@/components/SiteHeader';
 import { ClaimCard } from '@/components/ClaimCard';
 import { EmptyState } from '@/components/EmptyState';
@@ -12,7 +12,7 @@ type SortOrder = 'newest' | 'oldest';
 type OutcomeFilter = 'all' | 'true' | 'false';
 
 export default function MemoriaPage() {
-  const [detailedEvents, setDetailedEvents] = useState<HistoriaEvent[]>([]);
+  const [detailedEvents, setDetailedEvents] = useState<FossilEvent[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<Category | 'All'>('All');
   const [outcomeFilter, setOutcomeFilter] = useState<OutcomeFilter>('all');
@@ -70,7 +70,7 @@ export default function MemoriaPage() {
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
     link.setAttribute('href', url);
-    link.setAttribute('download', `historia_archive_${Date.now()}.csv`);
+    link.setAttribute('download', `fossil_archive_${Date.now()}.csv`);
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();

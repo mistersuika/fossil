@@ -10,7 +10,7 @@ export function Footer() {
       <div className="max-w-5xl mx-auto px-6 lg:px-8 py-8">
         <div className="flex items-center justify-between text-sm text-[var(--muted)]">
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-[var(--foreground)] text-xs tracking-tight">HISTORIA</span>
+            <span className="font-semibold text-[var(--foreground)] text-xs tracking-tight">FOSSIL</span>
             <span className="text-[var(--border)]">·</span>
             <a
               href="https://suikawaii.netlify.app/"

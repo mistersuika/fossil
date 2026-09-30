@@ -1,4 +1,4 @@
-// HISTORIA types — SUI version
+// FOSSIL types — SUI version
 
 export type ClaimStatus = 'VOTING' | 'REVEALING' | 'RESOLVED' | 'VOIDED';
 
@@ -24,7 +24,7 @@ export const CATEGORY_FROM_INDEX: Record<number, Category> = {
   4: 'Technology',
 };
 
-export interface HistoriaClaim {
+export interface FossilClaim {
   id: string;
   description: string;
   context: string;
@@ -53,7 +53,7 @@ export interface HistoriaClaim {
 }
 
 // Legacy alias for backwards compat during migration
-export type HistoriaEvent = HistoriaClaim;
+export type FossilEvent = FossilClaim;
 
 export interface WalletState {
   connected: boolean;

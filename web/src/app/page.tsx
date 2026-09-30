@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { fetchEvents, fetchGlobalStats } from '@/lib/sui';
-import { HistoriaClaim, CATEGORIES, Category } from '@/lib/types';
+import { FossilClaim, CATEGORIES, Category } from '@/lib/types';
 import { SiteHeader } from '@/components/SiteHeader';
 import { ClaimCard } from '@/components/ClaimCard';
 import { SectionHeader } from '@/components/SectionHeader';
@@ -19,7 +19,7 @@ const STATUS_LABELS: Record<StatusFilter, string> = {
 };
 
 export default function HomePage() {
-  const [claims, setClaims] = useState<HistoriaClaim[]>([]);
+  const [claims, setClaims] = useState<FossilClaim[]>([]);
   const [uniqueVoters, setUniqueVoters] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -78,7 +78,7 @@ export default function HomePage() {
             Collective Memory Protocol
           </div>
           <h1 className="text-7xl md:text-8xl font-bold text-[var(--foreground)] tracking-tight mb-7 leading-[0.95]">
-            HISTORIA
+            FOSSIL
           </h1>
           <p className="text-xl text-[var(--muted)] max-w-md mx-auto mb-4 font-light leading-relaxed">
             What humanity agreed to be true.

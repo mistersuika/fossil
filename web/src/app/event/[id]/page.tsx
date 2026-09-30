@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { fetchEvent } from '@/lib/sui';
-import { HistoriaClaim } from '@/lib/types';
+import { FossilClaim } from '@/lib/types';
 import { SiteHeader } from '@/components/SiteHeader';
 import { CommitForm } from '@/components/CommitForm';
 import { RevealForm } from '@/components/RevealForm';
@@ -21,7 +21,7 @@ export default function ClaimDetailPage() {
   const { connected, address } = useWallet();
   const params = useParams();
   const eventId = params.id as string;
-  const [claim, setClaim] = useState<HistoriaClaim | null>(null);
+  const [claim, setClaim] = useState<FossilClaim | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasPendingReveal, setHasPendingReveal] = useState(false);
@@ -42,7 +42,7 @@ export default function ClaimDetailPage() {
 
   useEffect(() => {
     if (!address || !claim) return;
-    const stored = localStorage.getItem(`historia_commit_${eventId}_${address}`);
+    const stored = localStorage.getItem(`fossil_commit_${eventId}_${address}`);
     const now = Date.now();
     const isRevealPhase = claim.commitEnd && claim.revealEnd && now >= claim.commitEnd && now < claim.revealEnd;
     setHasPendingReveal(!!stored && !!isRevealPhase);
@@ -102,7 +102,7 @@ export default function ClaimDetailPage() {
 
   const savedCommit = address ? (() => {
     try {
-      const raw = localStorage.getItem(`historia_commit_${eventId}_${address}`);
+      const raw = localStorage.getItem(`fossil_commit_${eventId}_${address}`);
       return raw ? JSON.parse(raw) : null;
     } catch { return null; }
   })() : null;

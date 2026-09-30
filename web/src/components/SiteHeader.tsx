@@ -48,7 +48,7 @@ export function SiteHeader() {
             href="/"
             className="text-sm font-bold text-[var(--foreground)] tracking-[0.05em] uppercase hover:opacity-70 transition-opacity"
           >
-            HISTORIA
+            FOSSIL
           </Link>
           <nav className="hidden sm:flex items-center gap-5">
             <Link

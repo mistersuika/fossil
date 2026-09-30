@@ -50,7 +50,7 @@ export function CommitForm({ eventId, stakeAmount, currentCommits = 0, poolSui =
       // Save secret BEFORE sending the transaction — if the browser crashes after
       // the tx lands but before setItem, the secret would be lost and the stake
       // would be unrecoverable. We overwrite with the digest once confirmed.
-      localStorage.setItem(`historia_commit_${eventId}_${address}`, JSON.stringify({
+      localStorage.setItem(`fossil_commit_${eventId}_${address}`, JSON.stringify({
         eventId,
         vote: selectedVote,
         secret,
@@ -67,7 +67,7 @@ export function CommitForm({ eventId, stakeAmount, currentCommits = 0, poolSui =
       );
 
       // Update with confirmed digest
-      localStorage.setItem(`historia_commit_${eventId}_${address}`, JSON.stringify({
+      localStorage.setItem(`fossil_commit_${eventId}_${address}`, JSON.stringify({
         eventId,
         vote: selectedVote,
         secret,

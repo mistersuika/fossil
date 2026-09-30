@@ -4,8 +4,8 @@ import { SiteHeader } from '@/components/SiteHeader';
 import { Footer } from '@/components/Footer';
 
 export const metadata = {
-  title: 'Whitepaper — HISTORIA',
-  description: 'HISTORIA White Paper v3.1 — The Registry of Epistemological Truth',
+  title: 'Whitepaper — FOSSIL',
+  description: 'FOSSIL White Paper v3.1 — The Registry of Epistemological Truth',
 };
 
 function Section({ number, title, children }: { number: string; title: string; children: React.ReactNode }) {
@@ -79,7 +79,7 @@ export default function WhitepaperPage() {
         <div className="mb-16 pb-10 border-b border-[var(--border)]">
           <p className="text-xs font-bold text-[var(--subtle)] uppercase tracking-widest mb-4">White Paper</p>
           <h1 className="text-4xl md:text-5xl font-bold text-[var(--foreground)] tracking-tight leading-tight mb-4">
-            HISTORIA
+            FOSSIL
           </h1>
           <p className="text-base text-[var(--muted)] mb-6">
             The Registry of Epistemological Truth<br />
@@ -95,13 +95,13 @@ export default function WhitepaperPage() {
         {/* Sections */}
         <Section number="1" title="Philosophy & Vision">
           <Sub title="The distinction between Reality and Truth" />
-          <p>The foundation of HISTORIA rests on an essential philosophical nuance: the distinction between Reality and Truth.</p>
+          <p>The foundation of FOSSIL rests on an essential philosophical nuance: the distinction between Reality and Truth.</p>
           <Highlight>
             Reality exists independently of the observer. Truth, on the other hand, is a human construction: an interpretation of the world validated by knowledge, evidence, methods, and the consensus of a given era.
           </Highlight>
-          <p>HISTORIA does not claim to capture absolute reality. HISTORIA archives what a collectivity considers true at a given moment: the <strong className="text-[var(--foreground)]">Truth of the Moment</strong>.</p>
+          <p>FOSSIL does not claim to capture absolute reality. FOSSIL archives what a collectivity considers true at a given moment: the <strong className="text-[var(--foreground)]">Truth of the Moment</strong>.</p>
           <Sub title="Our vision" />
-          <p>HISTORIA is a chronology of the evolution of human thought.</p>
+          <p>FOSSIL is a chronology of the evolution of human thought.</p>
           <p>By archiving an economic and social consensus at a moment T, the protocol protects each stage of our understanding against forgetting, alteration, or retroactive revisionism.</p>
           <p>We are building a system in which:</p>
           <List items={[
@@ -127,8 +127,8 @@ export default function WhitepaperPage() {
           <p>We gradually lose the memory of our own frameworks of thought: what we believed, why we believed it, how our certainties evolved. Without this memory, we sometimes preserve the conclusions, but we lose the history of their formation.</p>
         </Section>
 
-        <Section number="3" title="The Solution: the HISTORIA Protocol">
-          <p>HISTORIA introduces a decentralized consensus protocol designed to archive the truth of a given moment. It relies on:</p>
+        <Section number="3" title="The Solution: the FOSSIL Protocol">
+          <p>FOSSIL introduces a decentralized consensus protocol designed to archive the truth of a given moment. It relies on:</p>
           <List items={[
             'a commit–reveal voting mechanism;',
             'a staking system in SUI;',
@@ -158,9 +158,9 @@ export default function WhitepaperPage() {
         </Section>
 
         <Section number="5" title="Technical Architecture on Sui">
-          <p>HISTORIA is implemented in Move on the Sui blockchain.</p>
+          <p>FOSSIL is implemented in Move on the Sui blockchain.</p>
           <Sub title="Object model" />
-          <p>The protocol relies on a main shared object, <code className="text-xs font-mono bg-[var(--surface-raised)] px-1.5 py-0.5 rounded border border-[var(--border)]">Historia</code>, which contains: the events table, the commits table, the table of already claimed rewards, the global event counter, and the founder address.</p>
+          <p>The protocol relies on a main shared object, <code className="text-xs font-mono bg-[var(--surface-raised)] px-1.5 py-0.5 rounded border border-[var(--border)]">Fossil</code>, which contains: the events table, the commits table, the table of already claimed rewards, the global event counter, and the founder address.</p>
           <Sub title="Structured data" />
           <CodeBlock>
             events: Table{'<'}u64, EventRecord{'>'}{'\n'}
@@ -171,7 +171,7 @@ export default function WhitepaperPage() {
           <p>To allow indexing and frontend reading, the protocol emits:</p>
           <List items={['EventCreated', 'VoteCommitted', 'VoteRevealed', 'EventFinalized', 'RewardClaimed']} />
           <Highlight>
-            HISTORIA is not only an executable contract, but also a readable, observable, and indexable memory layer.
+            FOSSIL is not only an executable contract, but also a readable, observable, and indexable memory layer.
           </Highlight>
         </Section>
 
@@ -211,7 +211,7 @@ export default function WhitepaperPage() {
         </Section>
 
         <Section number="8" title="Game Theory">
-          <p>HISTORIA creates a Schelling-game-like environment where the rational strategy is to vote according to what one believes will be the strongest consensus based on available evidence.</p>
+          <p>FOSSIL creates a Schelling-game-like environment where the rational strategy is to vote according to what one believes will be the strongest consensus based on available evidence.</p>
           <p>The system encourages serious evaluation of claims, anticipation of collective judgment, and avoidance of impulsive voting.</p>
           <p>Commit–reveal is essential because: majority cannot be followed, coordination is harder, and vote buying is inefficient. Economic alignment creates epistemic discipline.</p>
         </Section>
@@ -235,24 +235,24 @@ export default function WhitepaperPage() {
         <Section number="11" title="User Experience">
           <p>The user should only: read, vote, reveal, claim. Commit–reveal complexity remains hidden.</p>
           <Highlight>
-            HISTORIA is not a dashboard. It is a memory interface.
+            FOSSIL is not a dashboard. It is a memory interface.
           </Highlight>
         </Section>
 
         <Section number="12" title="Limits">
-          <p>HISTORIA does not capture Reality. It captures a situated consensus.</p>
+          <p>FOSSIL does not capture Reality. It captures a situated consensus.</p>
           <List items={[
             'low participation may skew results;',
             'manipulation is possible but economically costly;',
             'depends on the quality and diversity of voters;',
             'majority consensus ≠ absolute truth.',
           ]} />
-          <p>This is intentional. HISTORIA records what a community believes — not what is objectively true.</p>
+          <p>This is intentional. FOSSIL records what a community believes — not what is objectively true.</p>
         </Section>
 
         <Section number="13" title="Conclusion">
-          <p>HISTORIA is not only a technological tool. It is a philosophical infrastructure of memory.</p>
-          <p>By recording not only statements but the way they are validated, HISTORIA becomes:</p>
+          <p>FOSSIL is not only a technological tool. It is a philosophical infrastructure of memory.</p>
+          <p>By recording not only statements but the way they are validated, FOSSIL becomes:</p>
           <List items={[
             'a defense against revisionism;',
             'an archive of intellectual progress;',

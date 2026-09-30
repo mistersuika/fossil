@@ -39,7 +39,7 @@ export function SplashScreen() {
         <div className="splash-source mt-10 flex items-center justify-center gap-4">
           <div className="h-px w-10 bg-[var(--border-strong)]" />
           <span className="text-[11px] font-bold tracking-[0.3em] uppercase text-[var(--muted)]">
-            HISTORIA
+            FOSSIL
           </span>
           <div className="h-px w-10 bg-[var(--border-strong)]" />
         </div>

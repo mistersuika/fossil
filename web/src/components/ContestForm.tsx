@@ -57,7 +57,7 @@ export function ContestForm({ parentEventId, parentDescription, stakeAmount, onS
       const { digest } = await submitEvent(description, '', 3, stakeInMist, commitMs, revealMs, commitHashBytes);
 
       const hashHex = Array.from(commitHashBytes, b => b.toString(16).padStart(2, '0')).join('');
-      localStorage.setItem(`historia_commit_new_${address}`, JSON.stringify({
+      localStorage.setItem(`fossil_commit_new_${address}`, JSON.stringify({
         parentId: parentEventId,
         vote,
         secret,

@@ -1,8 +1,8 @@
 import { getSuiClient } from './wallet';
-import { HistoriaClaim, ClaimStatus, Outcome, UserStats, CATEGORY_FROM_INDEX, Category } from './types';
+import { FossilClaim, ClaimStatus, Outcome, UserStats, CATEGORY_FROM_INDEX, Category } from './types';
 
 const PACKAGE_ID   = process.env.NEXT_PUBLIC_PACKAGE_ID   || '';
-const HISTORIA_ID  = process.env.NEXT_PUBLIC_HISTORIA_ID  || '';
+const FOSSIL_ID  = process.env.NEXT_PUBLIC_FOSSIL_ID  || '';
 
 // ========================
 // On-chain event types
@@ -73,9 +73,9 @@ function outcomeFromU8(value: number): Outcome {
 // Claims list query
 // ========================
 
-export async function fetchEvents(): Promise<HistoriaClaim[]> {
+export async function fetchEvents(): Promise<FossilClaim[]> {
   const client = getSuiClient();
-  const modulePrefix = `${PACKAGE_ID}::historia`;
+  const modulePrefix = `${PACKAGE_ID}::fossil`;
 
   const [created, committed, revealed, finalized] = await Promise.all([
     client.queryEvents({ query: { MoveEventType: `${modulePrefix}::EventCreated` }, limit: 1000 }),
@@ -115,7 +115,7 @@ export async function fetchEvents(): Promise<HistoriaClaim[]> {
     finalizedByEvent[f.event_id] = { ...f, timestampMs: e.timestampMs ? Number(e.timestampMs) : undefined };
   }
 
-  const claims: HistoriaClaim[] = created.data.map(e => {
+  const claims: FossilClaim[] = created.data.map(e => {
     const f = e.parsedJson as EventCreatedFields;
     const id = f.event_id;
     const stakeAmount = Number(f.stake_amount);
@@ -158,7 +158,7 @@ export async function fetchEvents(): Promise<HistoriaClaim[]> {
   return claims;
 }
 
-export async function fetchEvent(eventId: string): Promise<HistoriaClaim | null> {
+export async function fetchEvent(eventId: string): Promise<FossilClaim | null> {
   const all = await fetchEvents();
   return all.find(e => e.id === eventId) ?? null;
 }
@@ -174,7 +174,7 @@ export interface GlobalStats {
 
 export async function fetchGlobalStats(): Promise<GlobalStats> {
   const client = getSuiClient();
-  const modulePrefix = `${PACKAGE_ID}::historia`;
+  const modulePrefix = `${PACKAGE_ID}::fossil`;
 
   const [committed, created] = await Promise.all([
     client.queryEvents({ query: { MoveEventType: `${modulePrefix}::VoteCommitted` }, limit: 1000 }),
@@ -193,7 +193,7 @@ export async function fetchGlobalStats(): Promise<GlobalStats> {
 
 export async function fetchUserStats(address: string): Promise<UserStats> {
   const client = getSuiClient();
-  const modulePrefix = `${PACKAGE_ID}::historia`;
+  const modulePrefix = `${PACKAGE_ID}::fossil`;
 
   const [allCommits, allReveals, allFinalized, allCreated] = await Promise.all([
     client.queryEvents({ query: { MoveEventType: `${modulePrefix}::VoteCommitted` }, limit: 1000 }),
@@ -253,7 +253,7 @@ export async function fetchUserStats(address: string): Promise<UserStats> {
  */
 export async function getEventIdFromDigest(digest: string): Promise<string | null> {
   const client = getSuiClient();
-  const modulePrefix = `${PACKAGE_ID}::historia`;
+  const modulePrefix = `${PACKAGE_ID}::fossil`;
   try {
     const tx = await client.getTransactionBlock({
       digest,
@@ -272,7 +272,7 @@ export async function getEventIdFromDigest(digest: string): Promise<string | nul
 
 export async function hasCommitted(eventId: string, address: string): Promise<boolean> {
   const client = getSuiClient();
-  const modulePrefix = `${PACKAGE_ID}::historia`;
+  const modulePrefix = `${PACKAGE_ID}::fossil`;
   const result = await client.queryEvents({
     query: { MoveEventType: `${modulePrefix}::VoteCommitted` },
     limit: 1000,
@@ -285,7 +285,7 @@ export async function hasCommitted(eventId: string, address: string): Promise<bo
 
 export async function hasRevealed(eventId: string, address: string): Promise<boolean> {
   const client = getSuiClient();
-  const modulePrefix = `${PACKAGE_ID}::historia`;
+  const modulePrefix = `${PACKAGE_ID}::fossil`;
   const result = await client.queryEvents({
     query: { MoveEventType: `${modulePrefix}::VoteRevealed` },
     limit: 1000,
@@ -296,4 +296,4 @@ export async function hasRevealed(eventId: string, address: string): Promise<boo
   });
 }
 
-export { HISTORIA_ID, PACKAGE_ID };
+export { FOSSIL_ID, PACKAGE_ID };

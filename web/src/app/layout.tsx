@@ -9,7 +9,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "HISTORIA — The Truth of the Moment",
+  title: "FOSSIL — The Truth of the Moment",
   description: "An immutable archive of human consensus, claim by claim.",
 };
 

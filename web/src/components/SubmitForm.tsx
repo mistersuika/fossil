@@ -87,7 +87,7 @@ export function SubmitForm({ onSuccess }: SubmitFormProps) {
 
       // Save secret BEFORE submitting — if the browser crashes or indexing times out,
       // RevealForm will recover it from this pending key.
-      const pendingKey = `historia_pending_${address}`;
+      const pendingKey = `fossil_pending_${address}`;
       localStorage.setItem(pendingKey, JSON.stringify({
         vote: myVote,
         secret,
@@ -113,7 +113,7 @@ export function SubmitForm({ onSuccess }: SubmitFormProps) {
 
       if (eventId) {
         // Migrate from pending key to the correct commit key
-        localStorage.setItem(`historia_commit_${eventId}_${address}`, JSON.stringify({
+        localStorage.setItem(`fossil_commit_${eventId}_${address}`, JSON.stringify({
           eventId,
           vote: myVote,
           secret,

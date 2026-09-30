@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { fetchEvents, fetchUserStats } from '@/lib/sui';
 import { UserStats } from '@/lib/types';
-import { HistoriaEvent } from '@/lib/types';
+import { FossilEvent } from '@/lib/types';
 import { SiteHeader } from '@/components/SiteHeader';
 import { ClaimCard } from '@/components/ClaimCard';
 import { EmptyState } from '@/components/EmptyState';
@@ -52,7 +52,7 @@ export default function ProfileContent() {
   const targetAddress = searchParams.get('address') || address;
   const isViewingOwnProfile = targetAddress === address;
 
-  const [detailedEvents, setDetailedEvents] = useState<HistoriaEvent[]>([]);
+  const [detailedEvents, setDetailedEvents] = useState<FossilEvent[]>([]);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -99,11 +99,11 @@ export default function ProfileContent() {
     e.proposer.toLowerCase().includes(targetAddress.toLowerCase().slice(2, 10))
   );
 
-  const needsReveal: HistoriaEvent[] = [];
+  const needsReveal: FossilEvent[] = [];
   if (isViewingOwnProfile && address && typeof window !== 'undefined') {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key?.startsWith('historia_commit_') && !key.includes('_new_') && key.includes(address)) {
+      if (key?.startsWith('fossil_commit_') && !key.includes('_new_') && key.includes(address)) {
         try {
           const parts = key.split('_');
           const eventId = parts[2];

@@ -18,7 +18,7 @@ export function ClaimRewardButton({ eventId, rewardPerWinner, stakeAmount, isTie
   const [error, setError] = useState<string | null>(null);
   const [claimed, setClaimed] = useState(false);
 
-  const claimKey = `historia_claimed_${eventId}_${address}`;
+  const claimKey = `fossil_claimed_${eventId}_${address}`;
   const alreadyClaimed = typeof window !== 'undefined' && !!localStorage.getItem(claimKey);
 
   const totalPayout = (stakeAmount + rewardPerWinner) / 1_000_000_000;

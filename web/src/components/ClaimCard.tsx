@@ -1,16 +1,16 @@
 'use client';
 
 import Link from 'next/link';
-import { HistoriaClaim } from '@/lib/types';
+import { FossilClaim } from '@/lib/types';
 import { CategoryBadge } from './CategoryBadge';
 import { StatusBadge, OutcomeBadge } from './StatusBadge';
 import { ProfileLink } from './ProfileLink';
 
 interface ClaimCardProps {
-  claim: HistoriaClaim;
+  claim: FossilClaim;
 }
 
-function getTimeLabel(claim: HistoriaClaim): string | null {
+function getTimeLabel(claim: FossilClaim): string | null {
   const now = Date.now();
   const deadline =
     claim.status === 'VOTING'    ? claim.commitEnd :

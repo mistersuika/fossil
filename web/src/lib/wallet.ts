@@ -54,7 +54,7 @@ export function getSuiClient(): SuiClient {
 // ========================
 
 const PACKAGE_ID = process.env.NEXT_PUBLIC_PACKAGE_ID || '';
-const HISTORIA_ID = process.env.NEXT_PUBLIC_HISTORIA_ID || '';
+const FOSSIL_ID = process.env.NEXT_PUBLIC_FOSSIL_ID || '';
 
 async function signAndExecute(tx: Transaction): Promise<{ digest: string }> {
   if (!_signAndExecuteFn) {
@@ -125,9 +125,9 @@ export async function submitEvent(
   const tx = new Transaction();
   const [stakeCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(stakeAmountMist)]);
   tx.moveCall({
-    target: `${PACKAGE_ID}::historia::submit`,
+    target: `${PACKAGE_ID}::fossil::submit`,
     arguments: [
-      tx.object(HISTORIA_ID),
+      tx.object(FOSSIL_ID),
       tx.pure.vector('u8', Array.from(new TextEncoder().encode(description))),
       tx.pure.vector('u8', Array.from(new TextEncoder().encode(context))),
       tx.pure.u8(category),
@@ -150,9 +150,9 @@ export async function commitVote(
   const tx = new Transaction();
   const [stakeCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(stakeAmountMist)]);
   tx.moveCall({
-    target: `${PACKAGE_ID}::historia::commit_vote`,
+    target: `${PACKAGE_ID}::fossil::commit_vote`,
     arguments: [
-      tx.object(HISTORIA_ID),
+      tx.object(FOSSIL_ID),
       tx.pure.u64(eventId),
       tx.pure.vector('u8', Array.from(commitHash)),
       stakeCoin,
@@ -169,9 +169,9 @@ export async function revealVote(
 ): Promise<{ digest: string }> {
   const tx = new Transaction();
   tx.moveCall({
-    target: `${PACKAGE_ID}::historia::reveal_vote`,
+    target: `${PACKAGE_ID}::fossil::reveal_vote`,
     arguments: [
-      tx.object(HISTORIA_ID),
+      tx.object(FOSSIL_ID),
       tx.pure.u64(eventId),
       tx.pure.bool(vote),
       tx.pure.vector('u8', Array.from(new TextEncoder().encode(secret))),
@@ -184,9 +184,9 @@ export async function revealVote(
 export async function resolveEvent(eventId: bigint): Promise<{ digest: string }> {
   const tx = new Transaction();
   tx.moveCall({
-    target: `${PACKAGE_ID}::historia::resolve`,
+    target: `${PACKAGE_ID}::fossil::resolve`,
     arguments: [
-      tx.object(HISTORIA_ID),
+      tx.object(FOSSIL_ID),
       tx.pure.u64(eventId),
       tx.object('0x6'),
     ],
@@ -197,9 +197,9 @@ export async function resolveEvent(eventId: bigint): Promise<{ digest: string }>
 export async function claimReward(eventId: bigint): Promise<{ digest: string }> {
   const tx = new Transaction();
   tx.moveCall({
-    target: `${PACKAGE_ID}::historia::claim_reward`,
+    target: `${PACKAGE_ID}::fossil::claim_reward`,
     arguments: [
-      tx.object(HISTORIA_ID),
+      tx.object(FOSSIL_ID),
       tx.pure.u64(eventId),
     ],
   });

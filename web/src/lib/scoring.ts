@@ -1,4 +1,4 @@
-import { HistoriaEvent } from './types';
+import { FossilEvent } from './types';
 
 /**
  * Calcule un score de pertinence sur 10 pour un utilisateur
@@ -12,7 +12,7 @@ export function calculateUserScore(
   winRate: number, // 0-100
   totalVotes: number,
   totalStaked: number, // en GNOT
-  myProposals: HistoriaEvent[]
+  myProposals: FossilEvent[]
 ): number {
   // 1. Score du Win Rate (0-10)
   // 100% = 10 points, 0% = 0 points

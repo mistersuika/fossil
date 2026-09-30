@@ -1,8 +1,8 @@
 import { useRouter } from 'next/navigation';
-import { HistoriaClaim } from '@/lib/types';
+import { FossilClaim } from '@/lib/types';
 
 interface EventCardProps {
-  event: HistoriaClaim;
+  event: FossilClaim;
 }
 
 const CATEGORY_COLORS: Record<string, string> = {
