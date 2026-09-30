@@ -1,5 +1,5 @@
 [package]
-name = "historia"
+name = "fossil"
 version = "0.1.0"
 edition = "2024.beta"
 
@@ -7,7 +7,7 @@ edition = "2024.beta"
 Sui = { git = "https://github.com/MystenLabs/sui.git", subdir = "crates/sui-framework/packages/sui-framework", rev = "framework/testnet" }
 
 [addresses]
-historia = "0x0"
+fossil = "0x0"
 
 [environments]
 local = "f647a4a8"

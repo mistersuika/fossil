@@ -1,7 +1,7 @@
 /// HISTORIA: Decentralized Ledger of Collective Memory
 /// Commit-reveal blind voting with stake redistribution.
 /// One wallet, one vote. Truth is verified, not dictated.
-module historia::historia {
+module fossil::fossil {
     use sui::object::{Self, UID};
     use sui::tx_context::{Self, TxContext};
     use sui::transfer;
@@ -114,7 +114,7 @@ module historia::historia {
     }
 
     /// Main shared object — one per deployment
-    public struct Historia has key {
+    public struct Fossil has key {
         id: UID,
         events: Table<u64, EventRecord>,
         commits: Table<CommitKey, CommitRecord>,
@@ -173,7 +173,7 @@ module historia::historia {
     // ========================
 
     fun init(ctx: &mut TxContext) {
-        transfer::share_object(Historia {
+        transfer::share_object(Fossil {
             id: object::new(ctx),
             events: table::new(ctx),
             commits: table::new(ctx),
@@ -190,7 +190,7 @@ module historia::historia {
     /// Submit a new claim. The proposer is the first voter.
     /// Minimum stake for proposing is 2 SUI (anti-spam).
     public entry fun submit(
-        historia: &mut Historia,
+        fossil: &mut Fossil,
         description: vector<u8>,
         context: vector<u8>,
         category: u8,
@@ -219,8 +219,8 @@ module historia::historia {
         let commit_end_ms = now + commit_duration_ms;
         let reveal_end_ms = commit_end_ms + reveal_duration_ms;
 
-        let event_id = historia.event_count;
-        historia.event_count = event_id + 1;
+        let event_id = fossil.event_count;
+        fossil.event_count = event_id + 1;
 
         let sender = tx_context::sender(ctx);
 
@@ -233,7 +233,7 @@ module historia::historia {
 
         let voters = vector::singleton(sender);
 
-        table::add(&mut historia.events, event_id, EventRecord {
+        table::add(&mut fossil.events, event_id, EventRecord {
             description: desc,
             context: ctx_str,
             category,
@@ -253,7 +253,7 @@ module historia::historia {
             stake_pool: coin::into_balance(stake),
         });
 
-        table::add(&mut historia.commits, CommitKey { event_id, voter: sender }, CommitRecord {
+        table::add(&mut fossil.commits, CommitKey { event_id, voter: sender }, CommitRecord {
             hash_bytes: commit_hash,
             revealed: false,
             vote: false,
@@ -273,23 +273,23 @@ module historia::historia {
 
     /// Register a sealed vote during the voting phase.
     public entry fun commit_vote(
-        historia: &mut Historia,
+        fossil: &mut Fossil,
         event_id: u64,
         commit_hash: vector<u8>,
         mut stake_coin: Coin<SUI>,
         clock: &Clock,
         ctx: &mut TxContext,
     ) {
-        assert!(table::contains(&historia.events, event_id), ENotFound);
+        assert!(table::contains(&fossil.events, event_id), ENotFound);
         assert!(vector::length(&commit_hash) == 32, EInvalidHashLen);
 
         let now = clock::timestamp_ms(clock);
         let sender = tx_context::sender(ctx);
         let commit_key = CommitKey { event_id, voter: sender };
 
-        assert!(!table::contains(&historia.commits, commit_key), EAlreadyCommitted);
+        assert!(!table::contains(&fossil.commits, commit_key), EAlreadyCommitted);
 
-        let ev = table::borrow_mut(&mut historia.events, event_id);
+        let ev = table::borrow_mut(&mut fossil.events, event_id);
         assert!(ev.status == STATUS_COMMIT, EWrongPhase);
         assert!(now < ev.commit_end_ms, EWrongPhase);
         assert!(coin::value(&stake_coin) >= ev.stake_amount, EWrongStake);
@@ -307,7 +307,7 @@ module historia::historia {
         vector::push_back(&mut ev.voters, sender);
         let total_commits = ev.commits;
 
-        table::add(&mut historia.commits, commit_key, CommitRecord {
+        table::add(&mut fossil.commits, commit_key, CommitRecord {
             hash_bytes: commit_hash,
             revealed: false,
             vote: false,
@@ -318,20 +318,20 @@ module historia::historia {
 
     /// Reveal a previously committed vote.
     public entry fun reveal_vote(
-        historia: &mut Historia,
+        fossil: &mut Fossil,
         event_id: u64,
         vote: bool,
         secret: vector<u8>,
         clock: &Clock,
         ctx: &mut TxContext,
     ) {
-        assert!(table::contains(&historia.events, event_id), ENotFound);
+        assert!(table::contains(&fossil.events, event_id), ENotFound);
 
         let now = clock::timestamp_ms(clock);
         let sender = tx_context::sender(ctx);
 
         {
-            let ev = table::borrow_mut(&mut historia.events, event_id);
+            let ev = table::borrow_mut(&mut fossil.events, event_id);
             if (ev.status == STATUS_COMMIT && now >= ev.commit_end_ms) {
                 ev.status = STATUS_REVEAL;
             };
@@ -340,10 +340,10 @@ module historia::historia {
         };
 
         let commit_key = CommitKey { event_id, voter: sender };
-        assert!(table::contains(&historia.commits, commit_key), ENotFound);
+        assert!(table::contains(&fossil.commits, commit_key), ENotFound);
 
         {
-            let commit = table::borrow(&historia.commits, commit_key);
+            let commit = table::borrow(&fossil.commits, commit_key);
             assert!(!commit.revealed, EAlreadyRevealed);
 
             let mut preimage = bcs::to_bytes(&sender);
@@ -355,13 +355,13 @@ module historia::historia {
         };
 
         {
-            let commit = table::borrow_mut(&mut historia.commits, commit_key);
+            let commit = table::borrow_mut(&mut fossil.commits, commit_key);
             commit.revealed = true;
             commit.vote = vote;
         };
 
         let (votes_for, votes_against, total_reveals) = {
-            let ev = table::borrow_mut(&mut historia.events, event_id);
+            let ev = table::borrow_mut(&mut fossil.events, event_id);
             ev.reveals = ev.reveals + 1;
             if (vote) { ev.votes_for = ev.votes_for + 1 }
             else      { ev.votes_against = ev.votes_against + 1 };
@@ -375,17 +375,17 @@ module historia::historia {
     /// Computes the outcome and reward_per_winner without distributing individually.
     /// Winners and revealers then call claim_reward() to collect.
     public entry fun resolve(
-        historia: &mut Historia,
+        fossil: &mut Fossil,
         event_id: u64,
         clock: &Clock,
         ctx: &mut TxContext,
     ) {
-        assert!(table::contains(&historia.events, event_id), ENotFound);
+        assert!(table::contains(&fossil.events, event_id), ENotFound);
 
         let now = clock::timestamp_ms(clock);
 
         let (status, reveals, votes_for, votes_against, reveal_end_ms, proposer, stake_amount) = {
-            let ev = table::borrow(&historia.events, event_id);
+            let ev = table::borrow(&fossil.events, event_id);
             (ev.status, ev.reveals, ev.votes_for, ev.votes_against,
              ev.reveal_end_ms, ev.proposer, ev.stake_amount)
         };
@@ -393,11 +393,11 @@ module historia::historia {
         assert!(now >= reveal_end_ms, ERevealNotEnded);
         assert!(status != STATUS_RESOLVED && status != STATUS_VOIDED, EAlreadyFinalized);
 
-        let founder = historia.founder;
+        let founder = fossil.founder;
 
         // VOIDED: no reveals — all stakes go to founder
         if (reveals == 0) {
-            let ev = table::borrow_mut(&mut historia.events, event_id);
+            let ev = table::borrow_mut(&mut fossil.events, event_id);
             ev.status = STATUS_VOIDED;
             ev.outcome = OUTCOME_PENDING;
 
@@ -415,7 +415,7 @@ module historia::historia {
                       else if (votes_against > votes_for) { OUTCOME_AGAINST }
                       else                                 { OUTCOME_TIE };
 
-        let voters = *&table::borrow(&historia.events, event_id).voters;
+        let voters = *&table::borrow(&fossil.events, event_id).voters;
 
         // Compute losers_pool and count winners
         let mut reward_per_winner: u64 = 0;
@@ -428,11 +428,11 @@ module historia::historia {
             while (i < n) {
                 let voter = *vector::borrow(&voters, i);
                 let ck = CommitKey { event_id, voter };
-                if (table::contains(&historia.commits, ck)) {
-                    let commit = table::borrow(&historia.commits, ck);
+                if (table::contains(&fossil.commits, ck)) {
+                    let commit = table::borrow(&fossil.commits, ck);
                     if (!commit.revealed) {
                         // Non-revealer: forfeit stake to founder
-                        let ev = table::borrow_mut(&mut historia.events, event_id);
+                        let ev = table::borrow_mut(&mut fossil.events, event_id);
                         let forfeited = coin::from_balance(balance::split(&mut ev.stake_pool, stake_amount), ctx);
                         transfer::public_transfer(forfeited, founder);
                     };
@@ -452,8 +452,8 @@ module historia::historia {
             while (i < n) {
                 let voter = *vector::borrow(&voters, i);
                 let ck = CommitKey { event_id, voter };
-                if (table::contains(&historia.commits, ck)) {
-                    let commit = table::borrow(&historia.commits, ck);
+                if (table::contains(&fossil.commits, ck)) {
+                    let commit = table::borrow(&fossil.commits, ck);
                     if (!commit.revealed) {
                         losers_pool = losers_pool + stake_amount;
                     } else if (commit.vote == winning_vote) {
@@ -471,12 +471,12 @@ module historia::historia {
             let distributable = losers_pool - proposer_fee - founder_fee;
 
             if (proposer_fee > 0) {
-                let ev = table::borrow_mut(&mut historia.events, event_id);
+                let ev = table::borrow_mut(&mut fossil.events, event_id);
                 let fee = coin::from_balance(balance::split(&mut ev.stake_pool, proposer_fee), ctx);
                 transfer::public_transfer(fee, proposer);
             };
             if (founder_fee > 0) {
-                let ev = table::borrow_mut(&mut historia.events, event_id);
+                let ev = table::borrow_mut(&mut fossil.events, event_id);
                 let fee = coin::from_balance(balance::split(&mut ev.stake_pool, founder_fee), ctx);
                 transfer::public_transfer(fee, founder);
             };
@@ -487,13 +487,13 @@ module historia::historia {
             if (n_winners > 0) {
                 let dust = distributable % n_winners;
                 if (dust > 0) {
-                    let ev = table::borrow_mut(&mut historia.events, event_id);
+                    let ev = table::borrow_mut(&mut fossil.events, event_id);
                     let d = coin::from_balance(balance::split(&mut ev.stake_pool, dust), ctx);
                     transfer::public_transfer(d, founder);
                 };
             } else {
                 // No winners: remaining to founder
-                let ev = table::borrow_mut(&mut historia.events, event_id);
+                let ev = table::borrow_mut(&mut fossil.events, event_id);
                 let remaining = balance::value(&ev.stake_pool);
                 if (remaining > 0) {
                     let c = coin::from_balance(balance::split(&mut ev.stake_pool, remaining), ctx);
@@ -503,7 +503,7 @@ module historia::historia {
         };
 
         {
-            let ev = table::borrow_mut(&mut historia.events, event_id);
+            let ev = table::borrow_mut(&mut fossil.events, event_id);
             ev.status = STATUS_RESOLVED;
             ev.outcome = outcome;
             ev.winning_vote = winning_vote;
@@ -518,19 +518,19 @@ module historia::historia {
     /// - Revealer in TIE: receives stake_amount (refund)
     /// - Loser / non-revealer: no reward
     public entry fun claim_reward(
-        historia: &mut Historia,
+        fossil: &mut Fossil,
         event_id: u64,
         ctx: &mut TxContext,
     ) {
-        assert!(table::contains(&historia.events, event_id), ENotFound);
+        assert!(table::contains(&fossil.events, event_id), ENotFound);
 
         let sender = tx_context::sender(ctx);
         let claim_key = CommitKey { event_id, voter: sender };
 
-        assert!(!table::contains(&historia.rewards_claimed, claim_key), EAlreadyClaimed);
+        assert!(!table::contains(&fossil.rewards_claimed, claim_key), EAlreadyClaimed);
 
         let (status, outcome, stake_amount, reward_per_winner, winning_vote, votes_for, votes_against) = {
-            let ev = table::borrow(&historia.events, event_id);
+            let ev = table::borrow(&fossil.events, event_id);
             (ev.status, ev.outcome, ev.stake_amount, ev.reward_per_winner, ev.winning_vote, ev.votes_for, ev.votes_against)
         };
 
@@ -538,9 +538,9 @@ module historia::historia {
 
         // Check eligibility
         let commit_key = CommitKey { event_id, voter: sender };
-        assert!(table::contains(&historia.commits, commit_key), ENotFound);
+        assert!(table::contains(&fossil.commits, commit_key), ENotFound);
 
-        let commit = table::borrow(&historia.commits, commit_key);
+        let commit = table::borrow(&fossil.commits, commit_key);
         assert!(commit.revealed, ENotEligible);
 
         let eligible = if (outcome == OUTCOME_TIE || votes_for == 0 || votes_against == 0) {
@@ -552,11 +552,11 @@ module historia::historia {
         assert!(eligible, ENotEligible);
 
         // Mark as claimed
-        table::add(&mut historia.rewards_claimed, claim_key, true);
+        table::add(&mut fossil.rewards_claimed, claim_key, true);
 
         // Transfer: stake back + bonus
         let payout = stake_amount + reward_per_winner;
-        let ev = table::borrow_mut(&mut historia.events, event_id);
+        let ev = table::borrow_mut(&mut fossil.events, event_id);
         let c = coin::from_balance(balance::split(&mut ev.stake_pool, payout), ctx);
         transfer::public_transfer(c, sender);
 
@@ -567,30 +567,30 @@ module historia::historia {
     // Read-only helpers
     // ========================
 
-    public fun event_count(historia: &Historia): u64 {
-        historia.event_count
+    public fun event_count(fossil: &Fossil): u64 {
+        fossil.event_count
     }
 
-    public fun get_event_status(historia: &Historia, event_id: u64): u8 {
-        table::borrow(&historia.events, event_id).status
+    public fun get_event_status(fossil: &Fossil, event_id: u64): u8 {
+        table::borrow(&fossil.events, event_id).status
     }
 
-    public fun get_event_commits(historia: &Historia, event_id: u64): u64 {
-        table::borrow(&historia.events, event_id).commits
+    public fun get_event_commits(fossil: &Fossil, event_id: u64): u64 {
+        table::borrow(&fossil.events, event_id).commits
     }
 
-    public fun has_committed(historia: &Historia, event_id: u64, voter: address): bool {
-        table::contains(&historia.commits, CommitKey { event_id, voter })
+    public fun has_committed(fossil: &Fossil, event_id: u64, voter: address): bool {
+        table::contains(&fossil.commits, CommitKey { event_id, voter })
     }
 
-    public fun has_revealed(historia: &Historia, event_id: u64, voter: address): bool {
+    public fun has_revealed(fossil: &Fossil, event_id: u64, voter: address): bool {
         let ck = CommitKey { event_id, voter };
-        if (!table::contains(&historia.commits, ck)) { return false };
-        table::borrow(&historia.commits, ck).revealed
+        if (!table::contains(&fossil.commits, ck)) { return false };
+        table::borrow(&fossil.commits, ck).revealed
     }
 
-    public fun has_claimed(historia: &Historia, event_id: u64, voter: address): bool {
-        table::contains(&historia.rewards_claimed, CommitKey { event_id, voter })
+    public fun has_claimed(fossil: &Fossil, event_id: u64, voter: address): bool {
+        table::contains(&fossil.rewards_claimed, CommitKey { event_id, voter })
     }
 
     // ========================

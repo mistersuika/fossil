@@ -1,5 +1,5 @@
 #[test_only]
-module historia::historia_tests {
+module fossil::fossil_tests {
     use sui::test_scenario::{Self as ts, Scenario};
     use sui::clock;
     use sui::coin;
@@ -7,7 +7,7 @@ module historia::historia_tests {
     use std::hash;
     use std::bcs;
     use std::vector;
-    use historia::historia::{Self, Historia};
+    use fossil::fossil::{Self, Fossil};
 
     // ========================
     // Test addresses
@@ -41,10 +41,10 @@ module historia::historia_tests {
         hash::sha2_256(preimage)
     }
 
-    /// Bootstrap the Historia shared object as ADMIN
-    fun init_historia(scenario: &mut Scenario) {
+    /// Bootstrap the Fossil shared object as ADMIN
+    fun init_fossil(scenario: &mut Scenario) {
         ts::next_tx(scenario, ADMIN);
-        historia::init_for_testing(ts::ctx(scenario));
+        fossil::init_for_testing(ts::ctx(scenario));
     }
 
     /// Submit a new event as `proposer` (clock starts at 0)
@@ -56,11 +56,11 @@ module historia::historia_tests {
         secret: vector<u8>,
     ) {
         ts::next_tx(scenario, proposer);
-        let mut historia = ts::take_shared<Historia>(scenario);
+        let mut fossil = ts::take_shared<Fossil>(scenario);
         let clock = clock::create_for_testing(ts::ctx(scenario));
         let stake_coin = coin::mint_for_testing<SUI>(STAKE, ts::ctx(scenario));
-        historia::submit(
-            &mut historia,
+        fossil::submit(
+            &mut fossil,
             description,
             b"Context for test",
             0, // CAT_SCIENCE
@@ -73,7 +73,7 @@ module historia::historia_tests {
             ts::ctx(scenario),
         );
         clock::destroy_for_testing(clock);
-        ts::return_shared(historia);
+        ts::return_shared(fossil);
     }
 
     /// Commit a vote as `voter` at `now_ms` milliseconds
@@ -86,12 +86,12 @@ module historia::historia_tests {
         now_ms: u64,
     ) {
         ts::next_tx(scenario, voter);
-        let mut historia = ts::take_shared<Historia>(scenario);
+        let mut fossil = ts::take_shared<Fossil>(scenario);
         let mut clock = clock::create_for_testing(ts::ctx(scenario));
         clock::set_for_testing(&mut clock, now_ms);
         let stake_coin = coin::mint_for_testing<SUI>(STAKE, ts::ctx(scenario));
-        historia::commit_vote(
-            &mut historia,
+        fossil::commit_vote(
+            &mut fossil,
             event_id,
             make_hash(voter, vote, secret),
             stake_coin,
@@ -99,7 +99,7 @@ module historia::historia_tests {
             ts::ctx(scenario),
         );
         clock::destroy_for_testing(clock);
-        ts::return_shared(historia);
+        ts::return_shared(fossil);
     }
 
     /// Reveal a vote as `voter` at `now_ms` milliseconds
@@ -112,11 +112,11 @@ module historia::historia_tests {
         now_ms: u64,
     ) {
         ts::next_tx(scenario, voter);
-        let mut historia = ts::take_shared<Historia>(scenario);
+        let mut fossil = ts::take_shared<Fossil>(scenario);
         let mut clock = clock::create_for_testing(ts::ctx(scenario));
         clock::set_for_testing(&mut clock, now_ms);
-        historia::reveal_vote(
-            &mut historia,
+        fossil::reveal_vote(
+            &mut fossil,
             event_id,
             vote,
             secret,
@@ -124,26 +124,26 @@ module historia::historia_tests {
             ts::ctx(scenario),
         );
         clock::destroy_for_testing(clock);
-        ts::return_shared(historia);
+        ts::return_shared(fossil);
     }
 
     /// Resolve an event at `now_ms` milliseconds
     fun do_resolve(scenario: &mut Scenario, event_id: u64, now_ms: u64) {
         ts::next_tx(scenario, ADMIN);
-        let mut historia = ts::take_shared<Historia>(scenario);
+        let mut fossil = ts::take_shared<Fossil>(scenario);
         let mut clock = clock::create_for_testing(ts::ctx(scenario));
         clock::set_for_testing(&mut clock, now_ms);
-        historia::resolve(&mut historia, event_id, &clock, ts::ctx(scenario));
+        fossil::resolve(&mut fossil, event_id, &clock, ts::ctx(scenario));
         clock::destroy_for_testing(clock);
-        ts::return_shared(historia);
+        ts::return_shared(fossil);
     }
 
     /// Claim reward as `voter`
     fun do_claim(scenario: &mut Scenario, voter: address, event_id: u64) {
         ts::next_tx(scenario, voter);
-        let mut historia = ts::take_shared<Historia>(scenario);
-        historia::claim_reward(&mut historia, event_id, ts::ctx(scenario));
-        ts::return_shared(historia);
+        let mut fossil = ts::take_shared<Fossil>(scenario);
+        fossil::claim_reward(&mut fossil, event_id, ts::ctx(scenario));
+        ts::return_shared(fossil);
     }
 
     // ========================
@@ -153,17 +153,17 @@ module historia::historia_tests {
     #[test]
     fun test_submit_creates_event() {
         let mut scenario = ts::begin(ADMIN);
-        init_historia(&mut scenario);
+        init_fossil(&mut scenario);
 
         do_submit(&mut scenario, ALICE, b"Did the Berlin Wall fall in 1989?", true, b"secret");
 
         ts::next_tx(&mut scenario, ALICE);
         {
-            let historia = ts::take_shared<Historia>(&scenario);
-            assert!(historia::event_count(&historia) == 1, 0);
-            assert!(historia::has_committed(&historia, 0, ALICE), 1);
-            assert!(!historia::has_revealed(&historia, 0, ALICE), 2);
-            ts::return_shared(historia);
+            let fossil = ts::take_shared<Fossil>(&scenario);
+            assert!(fossil::event_count(&fossil) == 1, 0);
+            assert!(fossil::has_committed(&fossil, 0, ALICE), 1);
+            assert!(!fossil::has_revealed(&fossil, 0, ALICE), 2);
+            ts::return_shared(fossil);
         };
 
         ts::end(scenario);
@@ -173,7 +173,7 @@ module historia::historia_tests {
     fun test_for_wins() {
         // Alice FOR, Bob FOR, Carol AGAINST → FOR wins (2 > 1)
         let mut scenario = ts::begin(ADMIN);
-        init_historia(&mut scenario);
+        init_fossil(&mut scenario);
 
         do_submit(&mut scenario, ALICE, b"FOR wins", true,  b"alice_s");
         do_commit(&mut scenario, BOB,   0, true,  b"bob_s",   1_000);
@@ -187,10 +187,10 @@ module historia::historia_tests {
 
         ts::next_tx(&mut scenario, ADMIN);
         {
-            let historia = ts::take_shared<Historia>(&scenario);
+            let fossil = ts::take_shared<Fossil>(&scenario);
             // STATUS_RESOLVED = 2
-            assert!(historia::get_event_status(&historia, 0) == 2, 0);
-            ts::return_shared(historia);
+            assert!(fossil::get_event_status(&fossil, 0) == 2, 0);
+            ts::return_shared(fossil);
         };
 
         // Winners (Alice + Bob) can claim
@@ -204,7 +204,7 @@ module historia::historia_tests {
     fun test_against_wins() {
         // Alice AGAINST, Bob AGAINST, Carol FOR → AGAINST wins (2 > 1)
         let mut scenario = ts::begin(ADMIN);
-        init_historia(&mut scenario);
+        init_fossil(&mut scenario);
 
         do_submit(&mut scenario, ALICE, b"AGAINST wins", false, b"alice_s");
         do_commit(&mut scenario, BOB,   0, false, b"bob_s",   1_000);
@@ -218,9 +218,9 @@ module historia::historia_tests {
 
         ts::next_tx(&mut scenario, ADMIN);
         {
-            let historia = ts::take_shared<Historia>(&scenario);
-            assert!(historia::get_event_status(&historia, 0) == 2, 0);
-            ts::return_shared(historia);
+            let fossil = ts::take_shared<Fossil>(&scenario);
+            assert!(fossil::get_event_status(&fossil, 0) == 2, 0);
+            ts::return_shared(fossil);
         };
 
         // Winners (Alice + Bob) can claim
@@ -234,7 +234,7 @@ module historia::historia_tests {
     fun test_tie_both_revealers_can_claim() {
         // Alice FOR, Bob AGAINST → TIE → BOTH must be able to claim their stake back
         let mut scenario = ts::begin(ADMIN);
-        init_historia(&mut scenario);
+        init_fossil(&mut scenario);
 
         do_submit(&mut scenario, ALICE, b"TIE test", true,  b"alice_s");
         do_commit(&mut scenario, BOB,   0, false, b"bob_s", 1_000);
@@ -246,9 +246,9 @@ module historia::historia_tests {
 
         ts::next_tx(&mut scenario, ADMIN);
         {
-            let historia = ts::take_shared<Historia>(&scenario);
-            assert!(historia::get_event_status(&historia, 0) == 2, 0);
-            ts::return_shared(historia);
+            let fossil = ts::take_shared<Fossil>(&scenario);
+            assert!(fossil::get_event_status(&fossil, 0) == 2, 0);
+            ts::return_shared(fossil);
         };
 
         // Both revealers must be able to claim (refund only)
@@ -262,7 +262,7 @@ module historia::historia_tests {
     fun test_unanimous_revealer_can_claim() {
         // Alice FOR only (unanimous) — she reveals, Bob doesn't → Alice should claim refund
         let mut scenario = ts::begin(ADMIN);
-        init_historia(&mut scenario);
+        init_fossil(&mut scenario);
 
         do_submit(&mut scenario, ALICE, b"Unanimous test", true, b"alice_s");
         do_commit(&mut scenario, BOB, 0, false, b"bob_s", 1_000);
@@ -275,9 +275,9 @@ module historia::historia_tests {
 
         ts::next_tx(&mut scenario, ADMIN);
         {
-            let historia = ts::take_shared<Historia>(&scenario);
-            assert!(historia::get_event_status(&historia, 0) == 2, 0);
-            ts::return_shared(historia);
+            let fossil = ts::take_shared<Fossil>(&scenario);
+            assert!(fossil::get_event_status(&fossil, 0) == 2, 0);
+            ts::return_shared(fossil);
         };
 
         // Alice (sole revealer) must be able to claim her refund
@@ -290,17 +290,17 @@ module historia::historia_tests {
     fun test_voided_when_no_reveals() {
         // Alice commits but nobody reveals → VOIDED
         let mut scenario = ts::begin(ADMIN);
-        init_historia(&mut scenario);
+        init_fossil(&mut scenario);
 
         do_submit(&mut scenario, ALICE, b"VOIDED test", true, b"alice_s");
         do_resolve(&mut scenario, 0, COMMIT_MS + REVEAL_MS + 1);
 
         ts::next_tx(&mut scenario, ADMIN);
         {
-            let historia = ts::take_shared<Historia>(&scenario);
+            let fossil = ts::take_shared<Fossil>(&scenario);
             // STATUS_VOIDED = 3
-            assert!(historia::get_event_status(&historia, 0) == 3, 0);
-            ts::return_shared(historia);
+            assert!(fossil::get_event_status(&fossil, 0) == 3, 0);
+            ts::return_shared(fossil);
         };
 
         ts::end(scenario);
@@ -309,20 +309,20 @@ module historia::historia_tests {
     #[test]
     fun test_multiple_independent_events() {
         let mut scenario = ts::begin(ADMIN);
-        init_historia(&mut scenario);
+        init_fossil(&mut scenario);
 
         do_submit(&mut scenario, ALICE, b"Event zero", true,  b"a0");
         do_submit(&mut scenario, BOB,   b"Event one",  false, b"b0");
 
         ts::next_tx(&mut scenario, ADMIN);
         {
-            let historia = ts::take_shared<Historia>(&scenario);
-            assert!(historia::event_count(&historia) == 2, 0);
-            assert!(historia::has_committed(&historia, 0, ALICE), 1);
-            assert!(historia::has_committed(&historia, 1, BOB), 2);
-            assert!(!historia::has_committed(&historia, 1, ALICE), 3);
-            assert!(!historia::has_committed(&historia, 0, BOB), 4);
-            ts::return_shared(historia);
+            let fossil = ts::take_shared<Fossil>(&scenario);
+            assert!(fossil::event_count(&fossil) == 2, 0);
+            assert!(fossil::has_committed(&fossil, 0, ALICE), 1);
+            assert!(fossil::has_committed(&fossil, 1, BOB), 2);
+            assert!(!fossil::has_committed(&fossil, 1, ALICE), 3);
+            assert!(!fossil::has_committed(&fossil, 0, BOB), 4);
+            ts::return_shared(fossil);
         };
 
         ts::end(scenario);
@@ -337,7 +337,7 @@ module historia::historia_tests {
     fun test_double_commit_aborts() {
         // EAlreadyCommitted = 6
         let mut scenario = ts::begin(ADMIN);
-        init_historia(&mut scenario);
+        init_fossil(&mut scenario);
 
         do_submit(&mut scenario, ALICE, b"Event", true, b"secret1");
         do_commit(&mut scenario, ALICE, 0, false, b"secret2", 1_000);
@@ -350,7 +350,7 @@ module historia::historia_tests {
     fun test_wrong_secret_aborts() {
         // EHashMismatch = 9
         let mut scenario = ts::begin(ADMIN);
-        init_historia(&mut scenario);
+        init_fossil(&mut scenario);
 
         do_submit(&mut scenario, ALICE, b"Event", true, b"real_secret");
         do_reveal(&mut scenario, ALICE, 0, true, b"wrong_secret", COMMIT_MS + 1);
@@ -363,7 +363,7 @@ module historia::historia_tests {
     fun test_wrong_vote_aborts() {
         // EHashMismatch = 9: correct secret but flipped vote
         let mut scenario = ts::begin(ADMIN);
-        init_historia(&mut scenario);
+        init_fossil(&mut scenario);
 
         do_submit(&mut scenario, ALICE, b"Event", true, b"my_secret");
         do_reveal(&mut scenario, ALICE, 0, false, b"my_secret", COMMIT_MS + 1);
@@ -376,7 +376,7 @@ module historia::historia_tests {
     fun test_early_resolve_aborts() {
         // ERevealNotEnded = 11
         let mut scenario = ts::begin(ADMIN);
-        init_historia(&mut scenario);
+        init_fossil(&mut scenario);
 
         do_submit(&mut scenario, ALICE, b"Event", true, b"secret");
         do_resolve(&mut scenario, 0, COMMIT_MS + 1);
@@ -389,7 +389,7 @@ module historia::historia_tests {
     fun test_double_resolve_aborts() {
         // EAlreadyFinalized = 10
         let mut scenario = ts::begin(ADMIN);
-        init_historia(&mut scenario);
+        init_fossil(&mut scenario);
 
         do_submit(&mut scenario, ALICE, b"Event", true, b"alice_s");
         do_resolve(&mut scenario, 0, COMMIT_MS + REVEAL_MS + 1);
@@ -403,7 +403,7 @@ module historia::historia_tests {
     fun test_double_claim_aborts() {
         // EAlreadyClaimed = 15
         let mut scenario = ts::begin(ADMIN);
-        init_historia(&mut scenario);
+        init_fossil(&mut scenario);
 
         do_submit(&mut scenario, ALICE, b"Double claim", true, b"alice_s");
         do_commit(&mut scenario, BOB, 0, false, b"bob_s", 1_000);
@@ -429,7 +429,7 @@ module historia::historia_tests {
         // ENotEligible = 16
         // Alice FOR, Bob FOR, Carol AGAINST → FOR wins, Carol cannot claim
         let mut scenario = ts::begin(ADMIN);
-        init_historia(&mut scenario);
+        init_fossil(&mut scenario);
 
         do_submit(&mut scenario, ALICE, b"Loser test", true,  b"alice_s");
         do_commit(&mut scenario, BOB,   0, true,  b"bob_s",   1_000);
