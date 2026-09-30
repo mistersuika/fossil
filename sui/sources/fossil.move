@@ -30,8 +30,6 @@ module fossil::fossil {
     const OUTCOME_TIE: u8     = 2;
     const OUTCOME_PENDING: u8 = 3;
 
-    /// 0.01 SUI minimum stake to vote (in MIST) — test mode
-    const MIN_VOTE_MIST: u64      = 10_000_000;
     /// 0.01 SUI minimum stake to propose a claim — test mode
     const MIN_PROPOSE_MIST: u64   = 10_000_000;
     const MAX_DESC_LEN: u64       = 280;
@@ -107,8 +105,6 @@ module fossil::fossil {
         winning_vote: bool,
         /// Reward each winner can claim (computed at resolve time)
         reward_per_winner: u64,
-        /// Ordered list of all voters (for resolve counting)
-        voters: vector<address>,
         /// Accumulated stakes
         stake_pool: Balance<SUI>,
     }
@@ -231,8 +227,6 @@ module fossil::fossil {
             coin::destroy_zero(stake_coin);
         };
 
-        let voters = vector::singleton(sender);
-
         table::add(&mut fossil.events, event_id, EventRecord {
             description: desc,
             context: ctx_str,
@@ -249,7 +243,6 @@ module fossil::fossil {
             outcome: OUTCOME_PENDING,
             winning_vote: false,
             reward_per_winner: 0,
-            voters,
             stake_pool: coin::into_balance(stake),
         });
 
@@ -304,7 +297,6 @@ module fossil::fossil {
 
         balance::join(&mut ev.stake_pool, coin::into_balance(stake));
         ev.commits = ev.commits + 1;
-        vector::push_back(&mut ev.voters, sender);
         let total_commits = ev.commits;
 
         table::add(&mut fossil.commits, commit_key, CommitRecord {
@@ -372,8 +364,17 @@ module fossil::fossil {
     }
 
     /// Finalize a claim after the reveal deadline. Anyone can call this.
-    /// Computes the outcome and reward_per_winner without distributing individually.
-    /// Winners and revealers then call claim_reward() to collect.
+    ///
+    /// Fossil V1 economics:
+    /// - FOR majority: revealed FOR voters win
+    /// - AGAINST majority: revealed AGAINST voters win
+    /// - TIE: every revealer is considered a winner
+    /// - Non-revealers are always losers
+    /// - 3% of the losers pool goes to the proposer
+    /// - 97% of the losers pool is shared equally by winners
+    /// - If nobody reveals, the entire pool goes to the proposer
+    ///
+    /// Resolution is O(1): it never loops over all voters.
     public entry fun resolve(
         fossil: &mut Fossil,
         event_id: u64,
@@ -384,138 +385,133 @@ module fossil::fossil {
 
         let now = clock::timestamp_ms(clock);
 
-        let (status, reveals, votes_for, votes_against, reveal_end_ms, proposer, stake_amount) = {
+        let (
+            status,
+            commits,
+            reveals,
+            votes_for,
+            votes_against,
+            reveal_end_ms,
+            proposer,
+            stake_amount
+        ) = {
             let ev = table::borrow(&fossil.events, event_id);
-            (ev.status, ev.reveals, ev.votes_for, ev.votes_against,
-             ev.reveal_end_ms, ev.proposer, ev.stake_amount)
+            (
+                ev.status,
+                ev.commits,
+                ev.reveals,
+                ev.votes_for,
+                ev.votes_against,
+                ev.reveal_end_ms,
+                ev.proposer,
+                ev.stake_amount
+            )
         };
 
         assert!(now >= reveal_end_ms, ERevealNotEnded);
-        assert!(status != STATUS_RESOLVED && status != STATUS_VOIDED, EAlreadyFinalized);
+        assert!(
+            status != STATUS_RESOLVED && status != STATUS_VOIDED,
+            EAlreadyFinalized
+        );
 
-        let founder = fossil.founder;
-
-        // VOIDED: no reveals — all stakes go to founder
+        // Nobody revealed: nobody can win.
+        // The entire pool goes to the proposer.
         if (reveals == 0) {
             let ev = table::borrow_mut(&mut fossil.events, event_id);
             ev.status = STATUS_VOIDED;
             ev.outcome = OUTCOME_PENDING;
+            ev.reward_per_winner = 0;
 
             let pool_amount = balance::value(&ev.stake_pool);
             if (pool_amount > 0) {
-                let c = coin::from_balance(balance::split(&mut ev.stake_pool, pool_amount), ctx);
-                transfer::public_transfer(c, founder);
+                let payout = coin::from_balance(
+                    balance::split(&mut ev.stake_pool, pool_amount),
+                    ctx
+                );
+                transfer::public_transfer(payout, proposer);
             };
 
-            event::emit(EventFinalized { event_id, outcome: STATUS_VOIDED, votes_for: 0, votes_against: 0, reward_per_winner: 0 });
+            event::emit(EventFinalized {
+                event_id,
+                outcome: OUTCOME_PENDING,
+                votes_for,
+                votes_against,
+                reward_per_winner: 0,
+            });
             return
         };
 
-        let outcome = if (votes_for > votes_against)      { OUTCOME_FOR }
-                      else if (votes_against > votes_for) { OUTCOME_AGAINST }
-                      else                                 { OUTCOME_TIE };
-
-        let voters = *&table::borrow(&fossil.events, event_id).voters;
-
-        // Compute losers_pool and count winners
-        let mut reward_per_winner: u64 = 0;
-        let mut winning_vote: bool = false;
-
-        if (outcome == OUTCOME_TIE || votes_for == 0 || votes_against == 0) {
-            // Tie or unanimous: revealers get refund via claim_reward, non-revealers forfeit to founder
-            let mut i = 0u64;
-            let n = vector::length(&voters);
-            while (i < n) {
-                let voter = *vector::borrow(&voters, i);
-                let ck = CommitKey { event_id, voter };
-                if (table::contains(&fossil.commits, ck)) {
-                    let commit = table::borrow(&fossil.commits, ck);
-                    if (!commit.revealed) {
-                        // Non-revealer: forfeit stake to founder
-                        let ev = table::borrow_mut(&mut fossil.events, event_id);
-                        let forfeited = coin::from_balance(balance::split(&mut ev.stake_pool, stake_amount), ctx);
-                        transfer::public_transfer(forfeited, founder);
-                    };
-                };
-                i = i + 1;
-            };
-            // reward_per_winner = 0: revealers get back only their stake (stake_amount + 0)
-            reward_per_winner = 0;
-        } else {
-            // Normal: majority wins
-            winning_vote = outcome == OUTCOME_FOR;
-            let mut losers_pool: u64 = 0;
-            let mut n_winners: u64 = 0;
-
-            let mut i = 0u64;
-            let n = vector::length(&voters);
-            while (i < n) {
-                let voter = *vector::borrow(&voters, i);
-                let ck = CommitKey { event_id, voter };
-                if (table::contains(&fossil.commits, ck)) {
-                    let commit = table::borrow(&fossil.commits, ck);
-                    if (!commit.revealed) {
-                        losers_pool = losers_pool + stake_amount;
-                    } else if (commit.vote == winning_vote) {
-                        n_winners = n_winners + 1;
-                    } else {
-                        losers_pool = losers_pool + stake_amount;
-                    };
-                };
-                i = i + 1;
-            };
-
-            // 2% fee: 1% proposer + 1% founder
-            let proposer_fee = losers_pool / 100;
-            let founder_fee  = losers_pool / 100;
-            let distributable = losers_pool - proposer_fee - founder_fee;
-
-            if (proposer_fee > 0) {
-                let ev = table::borrow_mut(&mut fossil.events, event_id);
-                let fee = coin::from_balance(balance::split(&mut ev.stake_pool, proposer_fee), ctx);
-                transfer::public_transfer(fee, proposer);
-            };
-            if (founder_fee > 0) {
-                let ev = table::borrow_mut(&mut fossil.events, event_id);
-                let fee = coin::from_balance(balance::split(&mut ev.stake_pool, founder_fee), ctx);
-                transfer::public_transfer(fee, founder);
-            };
-
-            reward_per_winner = if (n_winners > 0) { distributable / n_winners } else { 0 };
-
-            // Any dust goes to founder
-            if (n_winners > 0) {
-                let dust = distributable % n_winners;
-                if (dust > 0) {
-                    let ev = table::borrow_mut(&mut fossil.events, event_id);
-                    let d = coin::from_balance(balance::split(&mut ev.stake_pool, dust), ctx);
-                    transfer::public_transfer(d, founder);
-                };
+        let outcome =
+            if (votes_for > votes_against) {
+                OUTCOME_FOR
+            } else if (votes_against > votes_for) {
+                OUTCOME_AGAINST
             } else {
-                // No winners: remaining to founder
-                let ev = table::borrow_mut(&mut fossil.events, event_id);
-                let remaining = balance::value(&ev.stake_pool);
-                if (remaining > 0) {
-                    let c = coin::from_balance(balance::split(&mut ev.stake_pool, remaining), ctx);
-                    transfer::public_transfer(c, founder);
-                };
+                OUTCOME_TIE
             };
+
+        // No iteration over voters is needed:
+        // - majority: winners are the majority revealers
+        // - tie: all revealers are winners
+        let n_winners =
+            if (outcome == OUTCOME_FOR) {
+                votes_for
+            } else if (outcome == OUTCOME_AGAINST) {
+                votes_against
+            } else {
+                reveals
+            };
+
+        let n_losers = commits - n_winners;
+        let losers_pool = n_losers * stake_amount;
+
+        // 3% proposer fee.
+        // The remaining 97% is shared by winners.
+        let base_proposer_fee = (losers_pool * 3) / 100;
+        let distributable = losers_pool - base_proposer_fee;
+
+        let reward_per_winner =
+            if (n_winners > 0) {
+                distributable / n_winners
+            } else {
+                0
+            };
+
+        // Integer division may leave a few MIST undistributed.
+        // Give this rounding dust to the proposer so no funds remain stuck.
+        let distributed_rewards = reward_per_winner * n_winners;
+        let rounding_dust = distributable - distributed_rewards;
+        let proposer_payout = base_proposer_fee + rounding_dust;
+
+        if (proposer_payout > 0) {
+            let ev = table::borrow_mut(&mut fossil.events, event_id);
+            let fee = coin::from_balance(
+                balance::split(&mut ev.stake_pool, proposer_payout),
+                ctx
+            );
+            transfer::public_transfer(fee, proposer);
         };
 
         {
             let ev = table::borrow_mut(&mut fossil.events, event_id);
             ev.status = STATUS_RESOLVED;
             ev.outcome = outcome;
-            ev.winning_vote = winning_vote;
+            ev.winning_vote = outcome == OUTCOME_FOR;
             ev.reward_per_winner = reward_per_winner;
         };
 
-        event::emit(EventFinalized { event_id, outcome, votes_for, votes_against, reward_per_winner });
+        event::emit(EventFinalized {
+            event_id,
+            outcome,
+            votes_for,
+            votes_against,
+            reward_per_winner,
+        });
     }
 
     /// Claim reward after resolution. Each eligible voter calls once.
-    /// - Winner (voted with majority): receives stake_amount + reward_per_winner
-    /// - Revealer in TIE: receives stake_amount (refund)
+    /// - Majority winner: receives stake_amount + reward_per_winner
+    /// - TIE: every revealer is a winner and receives stake_amount + reward_per_winner
     /// - Loser / non-revealer: no reward
     public entry fun claim_reward(
         fossil: &mut Fossil,
@@ -529,9 +525,15 @@ module fossil::fossil {
 
         assert!(!table::contains(&fossil.rewards_claimed, claim_key), EAlreadyClaimed);
 
-        let (status, outcome, stake_amount, reward_per_winner, winning_vote, votes_for, votes_against) = {
+        let (status, outcome, stake_amount, reward_per_winner, winning_vote) = {
             let ev = table::borrow(&fossil.events, event_id);
-            (ev.status, ev.outcome, ev.stake_amount, ev.reward_per_winner, ev.winning_vote, ev.votes_for, ev.votes_against)
+            (
+                ev.status,
+                ev.outcome,
+                ev.stake_amount,
+                ev.reward_per_winner,
+                ev.winning_vote
+            )
         };
 
         assert!(status == STATUS_RESOLVED, EWrongPhase);
@@ -543,8 +545,8 @@ module fossil::fossil {
         let commit = table::borrow(&fossil.commits, commit_key);
         assert!(commit.revealed, ENotEligible);
 
-        let eligible = if (outcome == OUTCOME_TIE || votes_for == 0 || votes_against == 0) {
-            true // TIE or unanimous: all revealers get their stake back
+        let eligible = if (outcome == OUTCOME_TIE) {
+            true // In a tie, every revealer is considered a winner
         } else {
             commit.vote == winning_vote // voted with majority
         };

@@ -2,7 +2,7 @@
 module fossil::fossil_tests {
     use sui::test_scenario::{Self as ts, Scenario};
     use sui::clock;
-    use sui::coin;
+    use sui::coin::{Self, Coin};
     use sui::sui::SUI;
     use std::hash;
     use std::bcs;
@@ -146,6 +146,18 @@ module fossil::fossil_tests {
         ts::return_shared(fossil);
     }
 
+    /// Read the most recent SUI coin transferred to `account`.
+    /// The coin is returned to the test inventory afterwards.
+    fun received_sui_amount(
+        scenario: &Scenario,
+        account: address,
+    ): u64 {
+        let c = ts::take_from_address<Coin<SUI>>(scenario, account);
+        let amount = coin::value(&c);
+        ts::return_to_address(account, c);
+        amount
+    }
+
     // ========================
     // Tests
     // ========================
@@ -260,28 +272,30 @@ module fossil::fossil_tests {
 
     #[test]
     fun test_unanimous_revealer_can_claim() {
-        // Alice FOR only (unanimous) — she reveals, Bob doesn't → Alice should claim refund
+        // Alice reveals FOR. Bob commits but never reveals.
         let mut scenario = ts::begin(ADMIN);
         init_fossil(&mut scenario);
 
         do_submit(&mut scenario, ALICE, b"Unanimous test", true, b"alice_s");
         do_commit(&mut scenario, BOB, 0, false, b"bob_s", 1_000);
 
-        // Only Alice reveals
         do_reveal(&mut scenario, ALICE, 0, true, b"alice_s", COMMIT_MS + 1);
-        // Bob does not reveal — his stake goes to founder
 
         do_resolve(&mut scenario, 0, COMMIT_MS + REVEAL_MS + 1);
 
-        ts::next_tx(&mut scenario, ADMIN);
-        {
-            let fossil = ts::take_shared<Fossil>(&scenario);
-            assert!(fossil::get_event_status(&fossil, 0) == 2, 0);
-            ts::return_shared(fossil);
-        };
+        // Bob loses 1 SUI.
+        // 3% goes to Alice as proposer.
+        ts::next_tx(&mut scenario, ALICE);
+        let proposer_fee = received_sui_amount(&scenario, ALICE);
+        assert!(proposer_fee == 30_000_000, 10);
 
-        // Alice (sole revealer) must be able to claim her refund
+        // Alice is the sole winner:
+        // 1 SUI stake + 0.97 SUI reward.
         do_claim(&mut scenario, ALICE, 0);
+
+        ts::next_tx(&mut scenario, ALICE);
+        let winner_payout = received_sui_amount(&scenario, ALICE);
+        assert!(winner_payout == 1_970_000_000, 11);
 
         ts::end(scenario);
     }
@@ -302,6 +316,134 @@ module fossil::fossil_tests {
             assert!(fossil::get_event_status(&fossil, 0) == 3, 0);
             ts::return_shared(fossil);
         };
+
+        ts::end(scenario);
+    }
+
+
+    #[test]
+    fun test_majority_fee_split_exact_amounts() {
+        // Alice FOR, Bob FOR, Carol AGAINST.
+        // Carol loses 1 SUI:
+        // - 3% = 0.03 SUI to Alice as proposer
+        // - 97% = 0.97 SUI shared by Alice and Bob
+        // - each winner gets 0.485 SUI reward
+        let mut scenario = ts::begin(ADMIN);
+        init_fossil(&mut scenario);
+
+        do_submit(&mut scenario, ALICE, b"Majority fee split", true, b"alice_s");
+        do_commit(&mut scenario, BOB,   0, true,  b"bob_s",   1_000);
+        do_commit(&mut scenario, CAROL, 0, false, b"carol_s", 2_000);
+
+        do_reveal(&mut scenario, ALICE, 0, true,  b"alice_s", COMMIT_MS + 1);
+        do_reveal(&mut scenario, BOB,   0, true,  b"bob_s",   COMMIT_MS + 2);
+        do_reveal(&mut scenario, CAROL, 0, false, b"carol_s", COMMIT_MS + 3);
+
+        do_resolve(&mut scenario, 0, COMMIT_MS + REVEAL_MS + 1);
+
+        // Proposer receives 3% of Carol's lost stake.
+        ts::next_tx(&mut scenario, ALICE);
+        let proposer_fee = received_sui_amount(&scenario, ALICE);
+        assert!(proposer_fee == 30_000_000, 20);
+
+        // Alice claims stake + 0.485 SUI reward.
+        do_claim(&mut scenario, ALICE, 0);
+        ts::next_tx(&mut scenario, ALICE);
+        let alice_payout = received_sui_amount(&scenario, ALICE);
+        assert!(alice_payout == 1_485_000_000, 21);
+
+        // Bob claims stake + 0.485 SUI reward.
+        do_claim(&mut scenario, BOB, 0);
+        ts::next_tx(&mut scenario, BOB);
+        let bob_payout = received_sui_amount(&scenario, BOB);
+        assert!(bob_payout == 1_485_000_000, 22);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    fun test_tie_with_non_revealer_rewards_all_revealers() {
+        // Alice FOR, Bob AGAINST, Carol commits but does not reveal.
+        // Alice and Bob tie, so both revealers are winners.
+        // Carol loses 1 SUI:
+        // - 3% = 0.03 SUI to Alice as proposer
+        // - 97% = 0.97 SUI shared equally
+        let mut scenario = ts::begin(ADMIN);
+        init_fossil(&mut scenario);
+
+        do_submit(&mut scenario, ALICE, b"Tie with non revealer", true, b"alice_s");
+        do_commit(&mut scenario, BOB,   0, false, b"bob_s",   1_000);
+        do_commit(&mut scenario, CAROL, 0, true,  b"carol_s", 2_000);
+
+        do_reveal(&mut scenario, ALICE, 0, true,  b"alice_s", COMMIT_MS + 1);
+        do_reveal(&mut scenario, BOB,   0, false, b"bob_s",   COMMIT_MS + 2);
+
+        do_resolve(&mut scenario, 0, COMMIT_MS + REVEAL_MS + 1);
+
+        ts::next_tx(&mut scenario, ALICE);
+        let proposer_fee = received_sui_amount(&scenario, ALICE);
+        assert!(proposer_fee == 30_000_000, 30);
+
+        do_claim(&mut scenario, ALICE, 0);
+        ts::next_tx(&mut scenario, ALICE);
+        let alice_payout = received_sui_amount(&scenario, ALICE);
+        assert!(alice_payout == 1_485_000_000, 31);
+
+        do_claim(&mut scenario, BOB, 0);
+        ts::next_tx(&mut scenario, BOB);
+        let bob_payout = received_sui_amount(&scenario, BOB);
+        assert!(bob_payout == 1_485_000_000, 32);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    fun test_zero_reveal_all_pool_to_proposer() {
+        // Alice proposes, Bob also commits, nobody reveals.
+        // Entire 2 SUI pool goes to Alice as proposer.
+        let mut scenario = ts::begin(ADMIN);
+        init_fossil(&mut scenario);
+
+        do_submit(&mut scenario, ALICE, b"Zero reveal payout", true, b"alice_s");
+        do_commit(&mut scenario, BOB, 0, false, b"bob_s", 1_000);
+
+        do_resolve(&mut scenario, 0, COMMIT_MS + REVEAL_MS + 1);
+
+        ts::next_tx(&mut scenario, ALICE);
+        let proposer_payout = received_sui_amount(&scenario, ALICE);
+        assert!(proposer_payout == 2_000_000_000, 40);
+
+        ts::end(scenario);
+    }
+
+    #[test]
+    fun test_founder_receives_no_protocol_payout() {
+        // ADMIN is founder.
+        // Alice + Carol vote FOR, Bob votes AGAINST.
+        // Bob loses 1 SUI.
+        // Alice receives 3% as proposer.
+        // Founder must receive nothing.
+        let mut scenario = ts::begin(ADMIN);
+        init_fossil(&mut scenario);
+
+        do_submit(&mut scenario, ALICE, b"No founder fee", true, b"alice_s");
+        do_commit(&mut scenario, BOB,   0, false, b"bob_s",   1_000);
+        do_commit(&mut scenario, CAROL, 0, true,  b"carol_s", 2_000);
+
+        do_reveal(&mut scenario, ALICE, 0, true,  b"alice_s", COMMIT_MS + 1);
+        do_reveal(&mut scenario, BOB,   0, false, b"bob_s",   COMMIT_MS + 2);
+        do_reveal(&mut scenario, CAROL, 0, true,  b"carol_s", COMMIT_MS + 3);
+
+        do_resolve(&mut scenario, 0, COMMIT_MS + REVEAL_MS + 1);
+
+        // Alice gets exactly 3% of Bob's lost 1 SUI.
+        ts::next_tx(&mut scenario, ALICE);
+        let proposer_fee = received_sui_amount(&scenario, ALICE);
+        assert!(proposer_fee == 30_000_000, 50);
+
+        // Founder ADMIN must not have received any Coin<SUI>.
+        let founder_coin = ts::most_recent_id_for_address<Coin<SUI>>(ADMIN);
+        assert!(founder_coin.is_none(), 51);
 
         ts::end(scenario);
     }
