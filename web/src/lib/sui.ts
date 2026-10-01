@@ -78,15 +78,27 @@ export async function fetchEvents(): Promise<FossilClaim[]> {
   const modulePrefix = `${PACKAGE_ID}::fossil`;
 
   const [created, committed, revealed, finalized] = await Promise.all([
-    client.queryEvents({ query: { MoveEventType: `${modulePrefix}::EventCreated` }, limit: 1000 }),
-    client.queryEvents({ query: { MoveEventType: `${modulePrefix}::VoteCommitted` }, limit: 1000 }),
-    client.queryEvents({ query: { MoveEventType: `${modulePrefix}::VoteRevealed` }, limit: 1000 }),
-    client.queryEvents({ query: { MoveEventType: `${modulePrefix}::EventFinalized` }, limit: 1000 }),
+    client.listEvents({
+      filter: { eventType: `${modulePrefix}::EventCreated` },
+      limit: 50,
+    }),
+    client.listEvents({
+      filter: { eventType: `${modulePrefix}::VoteCommitted` },
+      limit: 50,
+    }),
+    client.listEvents({
+      filter: { eventType: `${modulePrefix}::VoteRevealed` },
+      limit: 50,
+    }),
+    client.listEvents({
+      filter: { eventType: `${modulePrefix}::EventFinalized` },
+      limit: 50,
+    }),
   ]);
 
   const commitsByEvent: Record<string, number> = {};
-  for (const e of committed.data) {
-    const f = e.parsedJson as VoteCommittedFields;
+  for (const e of committed.events) {
+    const f = e.json as unknown as VoteCommittedFields;
     const totalCommits = Number(f.total_commits);
     // Keep the highest total_commits (most recent state)
     if (!commitsByEvent[f.event_id] || totalCommits > commitsByEvent[f.event_id]) {
@@ -95,8 +107,8 @@ export async function fetchEvents(): Promise<FossilClaim[]> {
   }
 
   const revealsByEvent: Record<string, { votesFor: number; votesAgainst: number; reveals: number }> = {};
-  for (const e of revealed.data) {
-    const f = e.parsedJson as VoteRevealedFields;
+  for (const e of revealed.events) {
+    const f = e.json as unknown as VoteRevealedFields;
     const existing = revealsByEvent[f.event_id];
     const totalReveals = Number(f.total_reveals);
     // Keep only the event with the highest total_reveals (the most recent state)
@@ -110,13 +122,13 @@ export async function fetchEvents(): Promise<FossilClaim[]> {
   }
 
   const finalizedByEvent: Record<string, EventFinalizedFields & { timestampMs?: number }> = {};
-  for (const e of finalized.data) {
-    const f = e.parsedJson as EventFinalizedFields;
-    finalizedByEvent[f.event_id] = { ...f, timestampMs: e.timestampMs ? Number(e.timestampMs) : undefined };
+  for (const e of finalized.events) {
+    const f = e.json as unknown as EventFinalizedFields;
+    finalizedByEvent[f.event_id] = { ...f };
   }
 
-  const claims: FossilClaim[] = created.data.map(e => {
-    const f = e.parsedJson as EventCreatedFields;
+  const claims: FossilClaim[] = created.events.map(e => {
+    const f = e.json as unknown as EventCreatedFields;
     const id = f.event_id;
     const stakeAmount = Number(f.stake_amount);
     const commitEndMs = Number(f.commit_end_ms);
@@ -177,17 +189,23 @@ export async function fetchGlobalStats(): Promise<GlobalStats> {
   const modulePrefix = `${PACKAGE_ID}::fossil`;
 
   const [committed, created] = await Promise.all([
-    client.queryEvents({ query: { MoveEventType: `${modulePrefix}::VoteCommitted` }, limit: 1000 }),
-    client.queryEvents({ query: { MoveEventType: `${modulePrefix}::EventCreated` }, limit: 1000 }),
+    client.listEvents({
+      filter: { eventType: `${modulePrefix}::VoteCommitted` },
+      limit: 50,
+    }),
+    client.listEvents({
+      filter: { eventType: `${modulePrefix}::EventCreated` },
+      limit: 50,
+    }),
   ]);
 
   const uniqueVoters = new Set(
-    committed.data.map(e => (e.parsedJson as VoteCommittedFields).voter)
+    committed.events.map(e => (e.json as unknown as VoteCommittedFields).voter)
   ).size;
 
   return {
     uniqueVoters,
-    totalClaims: created.data.length,
+    totalClaims: created.events.length,
   };
 }
 
@@ -196,46 +214,58 @@ export async function fetchUserStats(address: string): Promise<UserStats> {
   const modulePrefix = `${PACKAGE_ID}::fossil`;
 
   const [allCommits, allReveals, allFinalized, allCreated] = await Promise.all([
-    client.queryEvents({ query: { MoveEventType: `${modulePrefix}::VoteCommitted` }, limit: 1000 }),
-    client.queryEvents({ query: { MoveEventType: `${modulePrefix}::VoteRevealed` }, limit: 1000 }),
-    client.queryEvents({ query: { MoveEventType: `${modulePrefix}::EventFinalized` }, limit: 1000 }),
-    client.queryEvents({ query: { MoveEventType: `${modulePrefix}::EventCreated` }, limit: 1000 }),
+    client.listEvents({
+      filter: { eventType: `${modulePrefix}::VoteCommitted` },
+      limit: 50,
+    }),
+    client.listEvents({
+      filter: { eventType: `${modulePrefix}::VoteRevealed` },
+      limit: 50,
+    }),
+    client.listEvents({
+      filter: { eventType: `${modulePrefix}::EventFinalized` },
+      limit: 50,
+    }),
+    client.listEvents({
+      filter: { eventType: `${modulePrefix}::EventCreated` },
+      limit: 50,
+    }),
   ]);
 
-  const userCommits = allCommits.data.filter(
-    e => (e.parsedJson as VoteCommittedFields).voter === address
+  const userCommits = allCommits.events.filter(
+    e => (e.json as unknown as VoteCommittedFields).voter === address
   );
 
-  const userReveals = allReveals.data.filter(
-    e => (e.parsedJson as VoteRevealedFields).voter === address
+  const userReveals = allReveals.events.filter(
+    e => (e.json as unknown as VoteRevealedFields).voter === address
   );
 
   const stakeByEvent: Record<string, number> = {};
-  for (const e of allCreated.data) {
-    const f = e.parsedJson as EventCreatedFields;
+  for (const e of allCreated.events) {
+    const f = e.json as unknown as EventCreatedFields;
     stakeByEvent[f.event_id] = Number(f.stake_amount);
   }
 
   const finalizedMap: Record<string, EventFinalizedFields> = {};
-  for (const e of allFinalized.data) {
-    const f = e.parsedJson as EventFinalizedFields;
+  for (const e of allFinalized.events) {
+    const f = e.json as unknown as EventFinalizedFields;
     finalizedMap[f.event_id] = f;
   }
 
   const totalVotes   = userCommits.length;
   const totalReveals = userReveals.length;
   const totalStaked  = userCommits.reduce((sum, e) => {
-    const f = e.parsedJson as VoteCommittedFields;
+    const f = e.json as unknown as VoteCommittedFields;
     return sum + (stakeByEvent[f.event_id] ?? 0);
   }, 0);
 
-  const proposedClaims = allCreated.data.filter(
-    e => (e.parsedJson as EventCreatedFields).proposer === address
+  const proposedClaims = allCreated.events.filter(
+    e => (e.json as unknown as EventCreatedFields).proposer === address
   ).length;
 
   let wonVotes = 0;
   for (const e of userReveals) {
-    const f = e.parsedJson as VoteRevealedFields;
+    const f = e.json as unknown as VoteRevealedFields;
     const fin = finalizedMap[f.event_id];
     if (!fin || fin.outcome === 2 || fin.outcome === 3) continue;
     const winVote = fin.outcome === 1;
@@ -255,15 +285,20 @@ export async function getEventIdFromDigest(digest: string): Promise<string | nul
   const client = getSuiClient();
   const modulePrefix = `${PACKAGE_ID}::fossil`;
   try {
-    const tx = await client.getTransactionBlock({
+    const result = await client.getTransaction({
       digest,
-      options: { showEvents: true },
+      include: { events: true },
     });
-    const event = tx.events?.find(e =>
-      e.type === `${modulePrefix}::EventCreated`
+
+    const tx = result.Transaction ?? result.FailedTransaction;
+
+    const event = tx.events?.find(
+      e => e.eventType === `${modulePrefix}::EventCreated`
     );
+
     if (!event) return null;
-    const fields = event.parsedJson as EventCreatedFields;
+
+    const fields = event.json as unknown as EventCreatedFields;
     return fields.event_id ?? null;
   } catch {
     return null;
@@ -273,12 +308,12 @@ export async function getEventIdFromDigest(digest: string): Promise<string | nul
 export async function hasCommitted(eventId: string, address: string): Promise<boolean> {
   const client = getSuiClient();
   const modulePrefix = `${PACKAGE_ID}::fossil`;
-  const result = await client.queryEvents({
-    query: { MoveEventType: `${modulePrefix}::VoteCommitted` },
-    limit: 1000,
+  const result = await client.listEvents({
+    filter: { eventType: `${modulePrefix}::VoteCommitted` },
+    limit: 50,
   });
-  return result.data.some(e => {
-    const f = e.parsedJson as VoteCommittedFields;
+  return result.events.some(e => {
+    const f = e.json as unknown as VoteCommittedFields;
     return f.event_id === eventId && f.voter === address;
   });
 }
@@ -286,12 +321,12 @@ export async function hasCommitted(eventId: string, address: string): Promise<bo
 export async function hasRevealed(eventId: string, address: string): Promise<boolean> {
   const client = getSuiClient();
   const modulePrefix = `${PACKAGE_ID}::fossil`;
-  const result = await client.queryEvents({
-    query: { MoveEventType: `${modulePrefix}::VoteRevealed` },
-    limit: 1000,
+  const result = await client.listEvents({
+    filter: { eventType: `${modulePrefix}::VoteRevealed` },
+    limit: 50,
   });
-  return result.data.some(e => {
-    const f = e.parsedJson as VoteRevealedFields;
+  return result.events.some(e => {
+    const f = e.json as unknown as VoteRevealedFields;
     return f.event_id === eventId && f.voter === address;
   });
 }

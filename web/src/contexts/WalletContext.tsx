@@ -3,11 +3,10 @@
 import { createContext, useContext, useEffect, ReactNode } from 'react';
 import {
   useCurrentAccount,
-  useConnectWallet,
-  useDisconnectWallet,
-  useSignAndExecuteTransaction,
+  useDAppKit,
+  useWalletConnection,
   useWallets,
-} from '@mysten/dapp-kit';
+} from '@mysten/dapp-kit-react';
 import { Transaction } from '@mysten/sui/transactions';
 import { setSignAndExecuteFunction } from '@/lib/wallet';
 
@@ -26,45 +25,57 @@ const WalletContext = createContext<WalletContextType | undefined>(undefined);
 function WalletBridge({ children }: { children: ReactNode }) {
   const account = useCurrentAccount();
   const wallets = useWallets();
-  const { mutateAsync: connectAsync, isPending: isConnecting, error: connectError } = useConnectWallet();
-  const { mutateAsync: disconnectAsync } = useDisconnectWallet();
-  const { mutateAsync: signAndExecuteAsync } = useSignAndExecuteTransaction();
+  const dAppKit = useDAppKit();
+  const connection = useWalletConnection();
 
-  // Keep module-level sign function in sync with current account
   useEffect(() => {
     if (account) {
       setSignAndExecuteFunction(async (tx: Transaction) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const result = await signAndExecuteAsync({ transaction: tx as any });
-        return { digest: result.digest };
+        const result = await dAppKit.signAndExecuteTransaction({
+          transaction: tx,
+        });
+
+        if (result.FailedTransaction) {
+          throw new Error(
+            result.FailedTransaction.status.error?.message ??
+              'Transaction failed',
+          );
+        }
+
+        return {
+          digest: result.Transaction.digest,
+        };
       });
     } else {
       setSignAndExecuteFunction(null);
     }
-  }, [account?.address, signAndExecuteAsync]);
+  }, [account?.address, dAppKit]);
 
   const connect = async (walletName?: string) => {
     if (wallets.length === 0) return;
+
     const target = walletName
-      ? wallets.find(w => w.name === walletName)
+      ? wallets.find((wallet) => wallet.name === walletName)
       : wallets[0];
+
     if (!target) return;
-    await connectAsync({ wallet: target });
+
+    await dAppKit.connectWallet({ wallet: target });
   };
 
   const disconnect = async () => {
-    await disconnectAsync();
+    await dAppKit.disconnectWallet();
   };
-
-  const errorMessage = connectError instanceof Error ? connectError.message : null;
 
   return (
     <WalletContext.Provider
       value={{
         connected: !!account,
         address: account?.address ?? null,
-        isLoading: isConnecting,
-        error: errorMessage,
+        isLoading:
+          connection.status === 'connecting' ||
+          connection.status === 'reconnecting',
+        error: null,
         connect,
         disconnect,
         isInstalled: wallets.length > 0,
@@ -81,8 +92,10 @@ export function WalletProvider({ children }: { children: ReactNode }) {
 
 export function useWallet() {
   const context = useContext(WalletContext);
+
   if (context === undefined) {
     throw new Error('useWallet must be used within a WalletProvider');
   }
+
   return context;
 }

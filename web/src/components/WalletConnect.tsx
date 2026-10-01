@@ -2,13 +2,17 @@
 
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useWallets, useConnectWallet } from '@mysten/dapp-kit';
+import { useDAppKit, useWalletConnection, useWallets } from '@mysten/dapp-kit-react';
 import { useWallet } from '@/contexts/WalletContext';
 
 export function WalletConnect() {
   const { connected, address, isLoading, disconnect } = useWallet();
   const wallets = useWallets();
-  const { mutateAsync: connectAsync, isPending } = useConnectWallet();
+  const dAppKit = useDAppKit();
+  const connection = useWalletConnection();
+  const isPending =
+    connection.status === 'connecting' ||
+    connection.status === 'reconnecting';
   const [showModal, setShowModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,7 +21,7 @@ export function WalletConnect() {
     if (!wallet) return;
     setError(null);
     try {
-      await connectAsync({ wallet });
+      await dAppKit.connectWallet({ wallet });
       setShowModal(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Connection failed');

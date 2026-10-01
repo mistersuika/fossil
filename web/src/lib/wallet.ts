@@ -1,7 +1,7 @@
 'use client';
 
 import { Transaction } from '@mysten/sui/transactions';
-import { SuiClient } from '@mysten/sui/client';
+import { SuiGrpcClient } from '@mysten/sui/grpc';
 
 // ========================
 // Module-level sign function
@@ -39,13 +39,16 @@ export async function disconnectWallet(): Promise<void> {
 // SUI Client
 // ========================
 
-let _client: SuiClient | null = null;
+let _client: SuiGrpcClient | null = null;
 
-export function getSuiClient(): SuiClient {
+export function getSuiClient(): SuiGrpcClient {
   if (!_client) {
-    const rpcUrl = process.env.NEXT_PUBLIC_SUI_RPC_URL || 'https://fullnode.testnet.sui.io:443';
-    _client = new SuiClient({ url: rpcUrl });
+    _client = new SuiGrpcClient({
+      network: 'testnet',
+      baseUrl: 'https://fullnode.testnet.sui.io:443',
+    });
   }
+
   return _client;
 }
 
@@ -65,13 +68,15 @@ async function signAndExecute(tx: Transaction): Promise<{ digest: string }> {
   // Verify on-chain status — Sui includes failed txs in the chain with a digest
   try {
     const client = getSuiClient();
-    const txBlock = await client.getTransactionBlock({
+    const txResult = await client.getTransaction({
       digest: result.digest,
-      options: { showEffects: true },
+      include: { effects: true },
     });
-    const status = txBlock.effects?.status?.status;
-    if (status === 'failure') {
-      const reason = txBlock.effects?.status?.error ?? 'Unknown error';
+
+    const tx = txResult.Transaction ?? txResult.FailedTransaction;
+
+    if (!tx.status.success) {
+      const reason = tx.status.error?.message ?? 'Unknown error';
       if (reason.includes('InsufficientCoinBalance') || reason.includes('InsufficientGas')) {
         throw new Error('Insufficient SUI balance. Get testnet SUI from the faucet.');
       }
