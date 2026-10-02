@@ -1,138 +1,274 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { fetchEvents, fetchUserStats } from '@/lib/sui';
-import { UserStats } from '@/lib/types';
-import { FossilEvent } from '@/lib/types';
+import { useSearchParams } from 'next/navigation';
+
+import { fetchEvents, fetchUserParticipationIds, fetchUserStats } from '@/lib/sui';
+import {
+  Category,
+  CATEGORIES,
+  FossilEvent,
+  UserStats,
+} from '@/lib/types';
 import { SiteHeader } from '@/components/SiteHeader';
-import { ClaimCard } from '@/components/ClaimCard';
-import { EmptyState } from '@/components/EmptyState';
 import { WalletConnect } from '@/components/WalletConnect';
 import { useWallet } from '@/contexts/WalletContext';
 import { Footer } from '@/components/Footer';
 
+type CategoryFilter = 'All' | Category;
+
+type ActivityItem = {
+  event: FossilEvent;
+  proposed: boolean;
+  participated: boolean;
+};
+
 function CopyButton({ text }: { text: string }) {
   const [copied, setCopied] = useState(false);
-  const handleCopy = async () => {
+
+  const copy = async () => {
     await navigator.clipboard.writeText(text);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => setCopied(false), 1500);
   };
+
   return (
     <button
-      onClick={handleCopy}
-      className="inline-flex items-center gap-1 px-2 py-1 text-[11px] text-[var(--subtle)] hover:text-[var(--foreground)] border border-[var(--border)] rounded-[var(--radius-sm)] transition-all"
+      type="button"
+      onClick={copy}
+      className="font-mono text-[9px] uppercase tracking-[0.1em] text-[var(--subtle)] hover:text-[var(--foreground)] transition-colors"
     >
-      {copied ? (
-        <>
-          <svg className="w-3 h-3 text-[var(--yes-light)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-          </svg>
-          Copied
-        </>
-      ) : (
-        <>
-          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-          </svg>
-          Copy
-        </>
-      )}
+      {copied ? 'Copied' : 'Copy'}
     </button>
   );
 }
 
+function ActivityRow({
+  item,
+  attention = false,
+}: {
+  item: ActivityItem;
+  attention?: boolean;
+}) {
+  const { event, proposed, participated } = item;
+
+  const role =
+    proposed && participated
+      ? 'Proposed · Participation'
+      : proposed
+        ? 'Proposed'
+        : 'Participation';
+
+  const state =
+    attention
+      ? 'Reveal required'
+      : event.status === 'VOTING'
+        ? 'Active'
+        : event.status === 'REVEALING'
+          ? 'Reveal'
+          : event.status === 'VOIDED'
+            ? 'Voided'
+            : event.outcome || 'Resolved';
+
+  const date = event.createdAt
+    ? new Intl.DateTimeFormat('fr-FR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+      }).format(new Date(event.createdAt))
+    : '—';
+
+  return (
+    <Link
+      href={`/event/${event.id}`}
+      className="group grid grid-cols-[92px_minmax(0,1fr)_auto] md:grid-cols-[110px_minmax(0,1fr)_150px] items-center gap-5 py-4 border-b border-[var(--border)] hover:bg-[var(--surface-raised)]/35 transition-colors"
+    >
+      <span className="font-mono text-[9px] tracking-[0.04em] text-[var(--subtle)]">
+        {date}
+      </span>
+
+      <div className="min-w-0">
+        <p className="truncate text-[13px] md:text-[14px] font-medium tracking-[-0.01em] text-[var(--foreground)]">
+          {event.description}
+        </p>
+
+        <p className="mt-1 font-mono text-[8px] uppercase tracking-[0.09em] text-[var(--subtle)]">
+          {event.category} · {role}
+        </p>
+      </div>
+
+      <div className="text-right">
+        <span
+          className={`font-mono text-[8px] uppercase tracking-[0.1em] ${
+            attention
+              ? 'text-[var(--accent-hover)]'
+              : 'text-[var(--subtle)]'
+          }`}
+        >
+          {state}
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+function mergeActivity(
+  proposed: FossilEvent[],
+  participated: FossilEvent[],
+) {
+  const map = new Map<string, ActivityItem>();
+
+  for (const event of proposed) {
+    map.set(event.id, {
+      event,
+      proposed: true,
+      participated: false,
+    });
+  }
+
+  for (const event of participated) {
+    const existing = map.get(event.id);
+
+    if (existing) {
+      existing.participated = true;
+    } else {
+      map.set(event.id, {
+        event,
+        proposed: false,
+        participated: true,
+      });
+    }
+  }
+
+  return [...map.values()];
+}
+
 export default function ProfileContent() {
-  const { connected, address } = useWallet();
+  const { address } = useWallet();
   const searchParams = useSearchParams();
-  const router = useRouter();
 
   const targetAddress = searchParams.get('address') || address;
-  const isViewingOwnProfile = targetAddress === address;
 
-  const [detailedEvents, setDetailedEvents] = useState<FossilEvent[]>([]);
-  const [userStats, setUserStats] = useState<UserStats | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const isViewingOwnProfile =
+    !!address &&
+    !!targetAddress &&
+    address.toLowerCase() === targetAddress.toLowerCase();
+
+  const [events, setEvents] = useState<FossilEvent[]>([]);
+  const [stats, setStats] = useState<UserStats | null>(null);
+  const [participationIds, setParticipationIds] = useState<string[]>([]);
+  const [categoryFilter, setCategoryFilter] =
+    useState<CategoryFilter>('All');
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!targetAddress) return;
 
-    async function loadData() {
-      setIsLoading(true);
+    async function load() {
+      setLoading(true);
+      setError(null);
+
       try {
-        const [all, stats] = await Promise.all([
+        const [allEvents, userStats, userParticipationIds] = await Promise.all([
           fetchEvents(),
           fetchUserStats(targetAddress!),
+          fetchUserParticipationIds(targetAddress!),
         ]);
-        setDetailedEvents(all);
-        setUserStats(stats);
+
+        setEvents(allEvents);
+        setStats(userStats);
+        setParticipationIds(userParticipationIds);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Failed to load profile');
+        setError(
+          err instanceof Error
+            ? err.message
+            : 'Failed to load activity'
+        );
       } finally {
-        setIsLoading(false);
+        setLoading(false);
       }
     }
 
-    loadData();
+    load();
   }, [targetAddress]);
 
   if (!targetAddress) {
     return (
       <div className="min-h-screen bg-[var(--background)] flex flex-col">
         <SiteHeader />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center space-y-5">
-            <p className="text-sm text-[var(--muted)]">Connect your wallet to view your profile</p>
-            <WalletConnect />
+
+        <main className="flex-1 max-w-4xl w-full mx-auto px-6 lg:px-8 flex items-center">
+          <div>
+            <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--subtle)]">
+              My activity
+            </div>
+
+            <h1 className="mt-3 text-[34px] md:text-[40px] font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+              Join the consensus
+            </h1>
+
+            <p className="mt-4 max-w-md text-sm leading-relaxed text-[var(--muted)]">
+              Connect your wallet to access your activity.
+            </p>
+
+            <div className="mt-7">
+              <WalletConnect />
+            </div>
           </div>
-        </div>
+        </main>
+
         <Footer />
       </div>
     );
   }
 
-  const myProposals = detailedEvents.filter(e =>
-    e.proposer.toLowerCase() === targetAddress.toLowerCase() ||
-    e.proposer.toLowerCase().includes(targetAddress.toLowerCase().slice(2, 10))
+  const proposals = events.filter(
+    (event) =>
+      event.proposer.toLowerCase() ===
+        targetAddress.toLowerCase() ||
+      event.proposer
+        .toLowerCase()
+        .includes(targetAddress.toLowerCase().slice(2, 10))
   );
 
-  const needsReveal: FossilEvent[] = [];
-  if (isViewingOwnProfile && address && typeof window !== 'undefined') {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key?.startsWith('fossil_commit_') && !key.includes('_new_') && key.includes(address)) {
-        try {
-          const parts = key.split('_');
-          const eventId = parts[2];
-          if (eventId && !isNaN(Number(eventId))) {
-            const event = detailedEvents.find(e => e.id === eventId && e.status === 'REVEALING');
-            if (event && !needsReveal.find(e => e.id === eventId)) {
-              needsReveal.push(event);
-            }
-          }
-        } catch { /* ignore */ }
-      }
-    }
-  }
+  const participation = events.filter((event) =>
+    participationIds.includes(event.id)
+  );
 
-  const totalVoted   = userStats?.totalVotes  || 0;
-  const winRate      = userStats?.winRate      || 0;
-  const totalStaked  = (userStats?.totalStaked || 0) / 1_000_000_000;
-  const totalProposed = myProposals.length;
+  const activity = mergeActivity(proposals, participation);
 
-  if (isLoading) {
+  const filteredActivity =
+    categoryFilter === 'All'
+      ? activity
+      : activity.filter(
+          (item) => item.event.category === categoryFilter
+        );
+
+  const revealIds = new Set(
+    participation
+      .filter((event) => event.status === 'REVEALING')
+      .map((event) => event.id)
+  );
+
+  const revealCount = revealIds.size;
+
+  const totalVotes = stats?.totalVotes || 0;
+  const totalStaked =
+    (stats?.totalStaked || 0) / 1_000_000_000;
+
+  if (loading) {
     return (
       <div className="min-h-screen bg-[var(--background)] flex flex-col">
         <SiteHeader />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="flex flex-col items-center gap-4">
-            <div className="w-6 h-6 border-2 border-[var(--border)] border-t-[var(--foreground)] rounded-full animate-spin" />
-            <p className="text-xs text-[var(--subtle)] font-medium uppercase tracking-widest">Loading</p>
-          </div>
-        </div>
+
+        <main className="flex-1 flex items-center justify-center">
+          <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--subtle)]">
+            Loading activity
+          </p>
+        </main>
+
         <Footer />
       </div>
     );
@@ -142,131 +278,147 @@ export default function ProfileContent() {
     <div className="min-h-screen bg-[var(--background)] flex flex-col">
       <SiteHeader />
 
-      <div className="flex-1 max-w-4xl w-full mx-auto px-6 lg:px-8 py-16">
+      <main className="flex-1 max-w-5xl w-full mx-auto px-6 lg:px-8">
 
-        {/* Profile header */}
-        <section className="mb-14 pb-10 border-b border-[var(--border)]">
-          {!isViewingOwnProfile && (
-            <div className="mb-5">
-              <span className="inline-flex items-center px-2.5 py-1 text-[11px] font-medium bg-[var(--surface-raised)] text-[var(--subtle)] border border-[var(--border)] rounded-full uppercase tracking-wider">
-                Public Profile
-              </span>
-            </div>
-          )}
-
-          <div className="flex items-start justify-between gap-6">
+        <section className="pt-12 md:pt-16 pb-8 border-b border-[var(--border)]">
+          <div className="flex items-start justify-between gap-8">
             <div>
-              <div className="text-[10px] uppercase tracking-[0.3em] text-[var(--subtle)] font-medium mb-4">
-                {isViewingOwnProfile ? 'My Profile' : 'Participant'}
+              <div className="font-mono text-[9px] uppercase tracking-[0.16em] text-[var(--subtle)]">
+                {isViewingOwnProfile
+                  ? 'Personal record'
+                  : 'Participant'}
               </div>
-              <div className="flex items-center gap-3 flex-wrap">
-                <code className="text-base font-mono font-semibold text-[var(--foreground)] tracking-tight">
-                  {targetAddress.slice(0, 10)}...{targetAddress.slice(-8)}
+
+              <h1 className="mt-3 text-[36px] md:text-[42px] font-semibold tracking-[-0.04em] text-[var(--foreground)]">
+                {isViewingOwnProfile
+                  ? 'My activity'
+                  : 'Activity'}
+              </h1>
+
+              <div className="mt-4 flex items-center gap-3">
+                <code className="font-mono text-[10px] text-[var(--muted)]">
+                  {targetAddress.slice(0, 10)}…
+                  {targetAddress.slice(-8)}
                 </code>
+
                 <CopyButton text={targetAddress} />
               </div>
             </div>
 
-            {isViewingOwnProfile && !connected && (
-              <WalletConnect />
+            {isViewingOwnProfile && (
+              <Link
+                href="/submit"
+                className="mt-5 inline-flex items-center gap-2 text-[12px] font-medium text-[var(--foreground)] hover:opacity-60 transition-opacity"
+              >
+                <span className="text-[var(--accent-hover)] text-[17px] leading-none">
+                  +
+                </span>
+                Propose a claim
+              </Link>
             )}
           </div>
+        </section>
 
-          {/* Stats */}
-          <div className="flex items-center gap-10 mt-8">
-            <div>
-              <p className="text-2xl font-bold text-[var(--foreground)] tracking-tight">{totalProposed}</p>
-              <p className="text-[11px] text-[var(--subtle)] font-medium uppercase tracking-wider mt-0.5">Proposed</p>
-            </div>
-            <div className="w-px h-8 bg-[var(--border)]" />
-            <div>
-              <p className="text-2xl font-bold text-[var(--foreground)] tracking-tight">{totalVoted}</p>
-              <p className="text-[11px] text-[var(--subtle)] font-medium uppercase tracking-wider mt-0.5">Votes cast</p>
-            </div>
-            <div className="w-px h-8 bg-[var(--border)]" />
-            <div>
-              <p className="text-2xl font-bold text-[var(--foreground)] tracking-tight">{totalStaked.toFixed(1)}</p>
-              <p className="text-[11px] text-[var(--subtle)] font-medium uppercase tracking-wider mt-0.5">SUI staked</p>
-            </div>
-            <div className="w-px h-8 bg-[var(--border)]" />
-            <div>
-              <p className={`text-2xl font-bold tracking-tight ${winRate >= 60 ? 'text-[var(--yes-light)]' : winRate >= 40 ? 'text-[var(--foreground)]' : winRate > 0 ? 'text-[var(--no-light)]' : 'text-[var(--foreground)]'}`}>
-                {winRate > 0 ? `${winRate}%` : '—'}
-              </p>
-              <p className="text-[11px] text-[var(--subtle)] font-medium uppercase tracking-wider mt-0.5">Win rate</p>
-            </div>
+        <section className="flex flex-wrap gap-x-12 gap-y-5 py-6 border-b border-[var(--border)]">
+          <div>
+            <span className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+              {proposals.length}
+            </span>
+            <span className="ml-2 font-mono text-[8px] uppercase tracking-[0.11em] text-[var(--subtle)]">
+              Proposed
+            </span>
+          </div>
+
+          <div>
+            <span className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+              {totalVotes}
+            </span>
+            <span className="ml-2 font-mono text-[8px] uppercase tracking-[0.11em] text-[var(--subtle)]">
+              Participation
+            </span>
+          </div>
+
+          <div>
+            <span className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+              {totalStaked.toFixed(2)}
+            </span>
+            <span className="ml-2 font-mono text-[8px] uppercase tracking-[0.11em] text-[var(--subtle)]">
+              SUI staked
+            </span>
           </div>
         </section>
 
         {error && (
-          <div className="mb-8 p-4 rounded-[var(--radius)] bg-[var(--no-bg)] border border-[var(--no-border)] text-[var(--no)] text-sm">
-            {error}
-          </div>
+          <section className="py-5 border-b border-[var(--border)]">
+            <p className="text-sm text-[var(--no-light)]">
+              {error}
+            </p>
+          </section>
         )}
 
-        {/* Reveal alerts */}
-        {needsReveal.length > 0 && (
-          <div className="mb-10 bg-amber-50 border border-amber-200 rounded-[var(--radius)] p-6">
-            <div className="flex items-start gap-3 mb-4">
-              <div className="w-7 h-7 rounded-full bg-amber-100 flex items-center justify-center flex-shrink-0 mt-0.5">
-                <svg className="w-3.5 h-3.5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <div>
-                <h2 className="text-sm font-semibold text-amber-800 mb-1">
-                  {needsReveal.length} pending reveal{needsReveal.length > 1 ? 's' : ''}
-                </h2>
-                <p className="text-xs text-amber-700">
-                  Confirm your votes before the deadline to claim your reward.
-                </p>
-              </div>
-            </div>
-            <div className="space-y-2">
-              {needsReveal.map(event => (
-                <Link
-                  key={event.id}
-                  href={`/event/${event.id}`}
-                  className="flex items-center justify-between p-3 bg-white border border-amber-200 rounded-[var(--radius-sm)] hover:border-amber-400 transition-all"
+        <section className="py-6 border-b border-[var(--border)]">
+          <nav className="flex flex-wrap gap-x-7 gap-y-3">
+            {(['All', ...CATEGORIES] as CategoryFilter[]).map(
+              (category) => (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => setCategoryFilter(category)}
+                  className={`text-[10px] uppercase tracking-[0.1em] transition-colors ${
+                    categoryFilter === category
+                      ? 'text-[var(--foreground)] underline underline-offset-[6px]'
+                      : 'text-[var(--subtle)] hover:text-[var(--foreground)]'
+                  }`}
                 >
-                  <p className="text-sm text-[var(--foreground)] line-clamp-1 flex-1">{event.description}</p>
-                  <span className="text-xs font-semibold text-amber-600 ml-3 flex-shrink-0">Reveal →</span>
-                </Link>
-              ))}
+                  {category}
+                </button>
+              )
+            )}
+          </nav>
+        </section>
+
+        <section className="pt-8 pb-16">
+          <div className="flex items-baseline justify-between gap-6 pb-4 border-b border-[var(--border)]">
+            <h2 className="text-[18px] font-semibold tracking-[-0.025em] text-[var(--foreground)]">
+              History
+            </h2>
+
+            <div className="flex items-center gap-4">
+              {revealCount > 0 && (
+                <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-[var(--accent-hover)]">
+                  {revealCount} reveal
+                  {revealCount > 1 ? 's' : ''} need attention
+                </span>
+              )}
+
+              <span className="font-mono text-[8px] uppercase tracking-[0.1em] text-[var(--subtle)]">
+                {filteredActivity.length}
+              </span>
             </div>
           </div>
-        )}
 
-        {/* Proposed claims */}
-        <div className="mb-16">
-          <div className="flex items-end justify-between mb-8">
-            <div>
-              <h2 className="text-lg font-semibold text-[var(--foreground)] tracking-tight">Proposed Claims</h2>
-              <p className="text-sm text-[var(--subtle)] mt-1">
-                {isViewingOwnProfile ? 'Claims you have submitted to the protocol' : 'Claims submitted by this address'}
+          {filteredActivity.length === 0 ? (
+            <div className="py-9">
+              <p className="text-[13px] text-[var(--subtle)]">
+                No activity yet.
               </p>
             </div>
-            {myProposals.length > 0 && (
-              <span className="text-xs text-[var(--subtle)] font-medium">{myProposals.length}</span>
-            )}
-          </div>
-
-          {myProposals.length === 0 ? (
-            <EmptyState
-              title="No claims proposed"
-              description={isViewingOwnProfile ? 'Submit your first claim to contribute to the collective archive.' : 'This address has not proposed any claims.'}
-              action={isViewingOwnProfile ? { label: 'Submit a Claim', href: '/submit' } : undefined}
-            />
           ) : (
-            <div className="space-y-4">
-              {myProposals.map(claim => (
-                <ClaimCard key={claim.id} claim={claim} />
+            <div>
+              {filteredActivity.map((item) => (
+                <ActivityRow
+                  key={item.event.id}
+                  item={item}
+                  attention={
+                    item.participated &&
+                    revealIds.has(item.event.id)
+                  }
+                />
               ))}
             </div>
           )}
-        </div>
-
-      </div>
+        </section>
+      </main>
 
       <Footer />
     </div>

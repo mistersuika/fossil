@@ -1,29 +1,29 @@
 @import "tailwindcss";
 
 :root {
-  --background: #FAFAF8;
-  --surface: #FFFFFF;
-  --surface-raised: #F5F5F0;
-  --foreground: #1A1A1A;
-  --muted: #6B7280;
-  --subtle: #9CA3AF;
-  --border: #E8E8E3;
-  --border-strong: #C8C8C2;
+  --background: #F8F4EA;
+  --surface: #FCFAF5;
+  --surface-raised: #EFE8DA;
+  --foreground: #101938;
+  --muted: #667172;
+  --subtle: #8A918F;
+  --border: #D8D6CE;
+  --border-strong: rgba(16, 25, 56, 0.32);
 
   /* YES / NO */
-  --yes: #166534;
-  --yes-bg: #F0FDF4;
-  --yes-border: #BBF7D0;
-  --yes-light: #16A34A;
+  --yes: #376348;
+  --yes-bg: #EEF3ED;
+  --yes-border: #A9B9A7;
+  --yes-light: #4E6755;
 
-  --no: #9B1C1C;
-  --no-bg: #FEF2F2;
-  --no-border: #FECACA;
-  --no-light: #DC2626;
+  --no: #9D342F;
+  --no-bg: #F8EEEB;
+  --no-border: #D8A39A;
+  --no-light: #B55236;
 
   /* Accent — true black for premium feel */
-  --accent: #1A1A1A;
-  --accent-hover: #000000;
+  --accent: #E7AE48;
+  --accent-hover: #D89D35;
 
   /* Phase atmospheres */
   --phase-reveal-bg: #FFFBEB;
@@ -38,7 +38,7 @@
 
   /* Spacing & Shape */
   --radius: 10px;
-  --radius-sm: 6px;
+  --radius-sm: 8px;
   --radius-lg: 16px;
   --radius-btn: 6px;
   --radius-full: 9999px;
@@ -53,7 +53,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-sans: var(--font-manrope), 'Manrope', Arial, sans-serif;
 }
 
 * {
@@ -63,7 +63,7 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-inter), 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-family: var(--font-manrope), 'Manrope', Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-feature-settings: 'rlig' 1, 'calt' 1;
@@ -228,3 +228,44 @@ button, a {
   100% { opacity: 0; visibility: hidden; }
 }
 .animate-fade-out { animation: fade-out 2.5s ease-in-out forwards; }
+
+/* Fossil identity */
+.fossil-wordmark {
+  font-family: var(--font-manrope), "Manrope", Arial, sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.065em;
+}
+
+.font-mono {
+  font-family: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+}
+
+
+/* Homepage participation CTA */
+.fossil-wallet-cta button {
+  background: transparent !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--border-strong) !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: none !important;
+  padding: 0.625rem 1rem !important;
+}
+
+.fossil-wallet-cta button:hover {
+  background: var(--surface-raised) !important;
+}
+
+
+/* Compact claim preview used on the homepage record index */
+.fossil-claim-preview {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+/* Fossil layout rule:
+   the footer must always begin below the initial viewport. */
+main {
+  min-height: calc(100vh - 58px);
+}

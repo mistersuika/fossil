@@ -10,7 +10,11 @@ interface ResolveButtonProps {
   onSuccess?: () => void;
 }
 
-export function ResolveButton({ eventId, onSuccess, revealEndTimestamp }: ResolveButtonProps) {
+export function ResolveButton({
+  eventId,
+  onSuccess,
+  revealEndTimestamp,
+}: ResolveButtonProps) {
   const { connected, address } = useWallet();
   const [isResolving, setIsResolving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,8 +22,13 @@ export function ResolveButton({ eventId, onSuccess, revealEndTimestamp }: Resolv
   useEffect(() => {
     if (revealEndTimestamp) {
       const diff = Date.now() - revealEndTimestamp;
+
       if (diff <= 0) {
-        setError(`Confirmation phase not yet ended. Wait ${Math.ceil(-diff / 60000)} minute(s).`);
+        setError(
+          `Confirmation phase not yet ended. Wait ${Math.ceil(
+            -diff / 60000
+          )} minute(s).`
+        );
       }
     }
   }, [revealEndTimestamp]);
@@ -37,12 +46,22 @@ export function ResolveButton({ eventId, onSuccess, revealEndTimestamp }: Resolv
       await resolveEvent(BigInt(eventId));
       onSuccess?.();
     } catch (err) {
-      const errorMsg = err instanceof Error ? err.message : 'Failed to resolve';
+      const errorMsg =
+        err instanceof Error
+          ? err.message
+          : 'Failed to resolve';
+
       let detailedError = errorMsg;
 
       if (errorMsg.includes('ERevealNotEnded')) {
-        const timeLeft = revealEndTimestamp ? revealEndTimestamp - Date.now() : 0;
-        detailedError = `Confirmation phase not yet ended. Wait ${Math.ceil(timeLeft / 60000)} more minute(s).`;
+        const timeLeft = revealEndTimestamp
+          ? revealEndTimestamp - Date.now()
+          : 0;
+
+        detailedError =
+          `Confirmation phase not yet ended. Wait ${Math.ceil(
+            timeLeft / 60000
+          )} more minute(s).`;
       } else if (errorMsg.includes('EAlreadyFinalized')) {
         detailedError = 'This claim has already been resolved.';
       }
@@ -54,44 +73,43 @@ export function ResolveButton({ eventId, onSuccess, revealEndTimestamp }: Resolv
   };
 
   return (
-    <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] p-8 shadow-[var(--shadow-sm)]">
-      <div className="flex items-start gap-4 mb-6">
-        <div className="w-10 h-10 rounded-full bg-[var(--surface-raised)] flex items-center justify-center flex-shrink-0">
-          <svg className="w-5 h-5 text-[var(--muted)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-        </div>
-        <div>
-          <h3 className="text-base font-bold text-[var(--foreground)] mb-1 tracking-tight">Ready to Finalize</h3>
-          <p className="text-sm text-[var(--muted)]">
-            The confirmation phase has ended. Finalize the results to distribute stakes to the winning side.
-          </p>
-        </div>
+    <div className="border-t border-[var(--border)] pt-8">
+      <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--subtle)]">
+        Resolution
       </div>
 
+      <h3 className="mt-4 text-[21px] md:text-[23px] font-semibold tracking-[-0.025em] text-[var(--foreground)]">
+        Ready to finalize
+      </h3>
+
+      <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-[var(--muted)]">
+        The reveal phase has ended. Finalize the result and distribute
+        the pooled stakes.
+      </p>
+
       {!connected && (
-        <div className="p-4 rounded-[var(--radius-sm)] bg-amber-50 border border-amber-200 text-amber-700 text-sm font-medium mb-5">
-          Connect your wallet to finalize this claim
-        </div>
+        <p className="mt-5 text-[12px] text-[var(--accent-hover)]">
+          Connect your wallet to finalize this claim.
+        </p>
       )}
 
       {error && (
-        <div className="p-4 rounded-[var(--radius-sm)] bg-[var(--no-bg)] border border-[var(--no-border)] text-[var(--no-light)] text-sm font-medium mb-5">
+        <div className="mt-6 max-w-2xl border-y border-[var(--no-border)] py-4 text-[13px] leading-relaxed text-[var(--no-light)]">
           {error}
         </div>
       )}
 
       <button
+        type="button"
         onClick={handleResolve}
         disabled={isResolving || !connected || !address}
-        className="w-full py-3 bg-[var(--accent)] text-white font-bold text-sm rounded-[var(--radius-sm)] hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+        className="mt-7 h-12 px-6 bg-[var(--accent)] text-[var(--foreground)] text-[13px] font-medium rounded-[var(--radius-sm)] hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
       >
-        {isResolving ? (
-          <>
-            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            Finalizing...
-          </>
-        ) : !connected ? 'Connect Wallet First' : 'Finalize Results'}
+        {isResolving
+          ? 'Finalizing…'
+          : !connected
+            ? 'Connect wallet'
+            : 'Finalize result'}
       </button>
     </div>
   );

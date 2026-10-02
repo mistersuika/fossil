@@ -1,6 +1,5 @@
 'use client';
 
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { SiteHeader } from '@/components/SiteHeader';
 import { SubmitForm } from '@/components/SubmitForm';
@@ -14,19 +13,6 @@ export default function SubmitPage() {
       <SiteHeader />
 
       <main className="flex-1 max-w-2xl w-full mx-auto px-6 lg:px-8 py-16">
-
-        {/* Breadcrumb */}
-        <div className="mb-12">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-1.5 text-xs text-[var(--subtle)] hover:text-[var(--foreground)] transition-colors uppercase tracking-widest font-medium"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-            Back
-          </Link>
-        </div>
 
         {/* Header */}
         <div className="mb-12">

@@ -31,6 +31,8 @@ export interface FossilClaim {
   category: Category;
   status: ClaimStatus;
   proposer: string;
+  /** Creation timestamp in ms */
+  createdAt?: number;
   /** Stake per voter in MIST (1 SUI = 1_000_000_000 MIST) */
   stakeAmount: number;
   version: number;

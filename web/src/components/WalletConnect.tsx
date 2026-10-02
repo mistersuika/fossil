@@ -60,7 +60,7 @@ export function WalletConnect() {
             Connecting...
           </>
         ) : (
-          'Connect Wallet'
+          'Join the consensus'
         )}
       </button>
 

@@ -21,6 +21,20 @@ export default function MemoriaPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+
+    const category = params.get('category');
+    if (category && CATEGORIES.includes(category as Category)) {
+      setCategoryFilter(category as Category);
+    }
+
+    const query = params.get('q');
+    if (query) {
+      setSearchQuery(query);
+    }
+  }, []);
+
+  useEffect(() => {
     async function loadEvents() {
       try {
         const all = await fetchEvents();
@@ -40,7 +54,14 @@ export default function MemoriaPage() {
   const totalStaked = detailedEvents.reduce((sum, e) => sum + e.poolSui, 0);
 
   let filtered = detailedEvents.filter((e) => {
-    const matchSearch = e.description.toLowerCase().includes(searchQuery.toLowerCase());
+    const query = searchQuery.trim().toLowerCase();
+    const matchSearch =
+      !query ||
+      e.description.toLowerCase().includes(query) ||
+      e.context.toLowerCase().includes(query) ||
+      e.category.toLowerCase().includes(query) ||
+      e.id.toLowerCase().includes(query) ||
+      e.proposer.toLowerCase().includes(query);
     const matchCat = categoryFilter === 'All' || e.category === categoryFilter;
     const matchOutcome =
       outcomeFilter === 'all'   ? true :

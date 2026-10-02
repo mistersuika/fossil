@@ -96,6 +96,47 @@ export async function fetchEvents(): Promise<FossilClaim[]> {
     }),
   ]);
 
+  // Event queries expose the transaction digest but not the transaction timestamp.
+  // Resolve creation/finalization dates from the transactions that emitted those events.
+  const timestampForDigest = async (digest: string): Promise<number | undefined> => {
+    try {
+      const { response } = await client.ledgerService.getTransaction({
+        digest,
+        readMask: { paths: ['timestamp'] },
+      });
+
+      const timestamp = response.transaction?.timestamp;
+      if (!timestamp?.seconds) return undefined;
+
+      return (
+        Number(timestamp.seconds) * 1000 +
+        Math.floor((timestamp.nanos ?? 0) / 1_000_000)
+      );
+    } catch {
+      return undefined;
+    }
+  };
+
+  const createdTimestamps = new Map<string, number | undefined>();
+  const finalizedTimestamps = new Map<string, number | undefined>();
+
+  await Promise.all([
+    ...created.events.map(async (e) => {
+      const f = e.json as unknown as EventCreatedFields;
+      createdTimestamps.set(
+        f.event_id,
+        await timestampForDigest(e.transactionDigest)
+      );
+    }),
+    ...finalized.events.map(async (e) => {
+      const f = e.json as unknown as EventFinalizedFields;
+      finalizedTimestamps.set(
+        f.event_id,
+        await timestampForDigest(e.transactionDigest)
+      );
+    }),
+  ]);
+
   const commitsByEvent: Record<string, number> = {};
   for (const e of committed.events) {
     const f = e.json as unknown as VoteCommittedFields;
@@ -121,10 +162,10 @@ export async function fetchEvents(): Promise<FossilClaim[]> {
     }
   }
 
-  const finalizedByEvent: Record<string, EventFinalizedFields & { timestampMs?: number }> = {};
+  const finalizedByEvent: Record<string, EventFinalizedFields> = {};
   for (const e of finalized.events) {
     const f = e.json as unknown as EventFinalizedFields;
-    finalizedByEvent[f.event_id] = { ...f };
+    finalizedByEvent[f.event_id] = f;
   }
 
   const claims: FossilClaim[] = created.events.map(e => {
@@ -149,6 +190,7 @@ export async function fetchEvents(): Promise<FossilClaim[]> {
       category,
       status,
       proposer: f.proposer,
+      createdAt: createdTimestamps.get(id),
       stakeAmount,
       version: 1,
       commits,
@@ -162,7 +204,7 @@ export async function fetchEvents(): Promise<FossilClaim[]> {
       commitEnd: commitEndMs,
       revealEnd: revealEndMs,
       rewardPerWinner: fin ? Number(fin.reward_per_winner) : undefined,
-      resolvedAt: fin?.timestampMs,
+      resolvedAt: fin ? finalizedTimestamps.get(id) : undefined,
     };
   });
 
@@ -209,6 +251,44 @@ export async function fetchGlobalStats(): Promise<GlobalStats> {
   };
 }
 
+export async function fetchUserParticipationIds(address: string): Promise<string[]> {
+  const client = getSuiClient();
+  const modulePrefix = `${PACKAGE_ID}::fossil`;
+
+  const [committed, created] = await Promise.all([
+    client.listEvents({
+      filter: { eventType: `${modulePrefix}::VoteCommitted` },
+      limit: 50,
+    }),
+    client.listEvents({
+      filter: { eventType: `${modulePrefix}::EventCreated` },
+      limit: 50,
+    }),
+  ]);
+
+  const eventIds = new Set<string>();
+
+  // Explicit votes on existing claims.
+  for (const e of committed.events) {
+    const f = e.json as unknown as VoteCommittedFields;
+
+    if (f.voter.toLowerCase() === address.toLowerCase()) {
+      eventIds.add(f.event_id);
+    }
+  }
+
+  // The proposer is also the first voter on their own claim.
+  for (const e of created.events) {
+    const f = e.json as unknown as EventCreatedFields;
+
+    if (f.proposer.toLowerCase() === address.toLowerCase()) {
+      eventIds.add(f.event_id);
+    }
+  }
+
+  return [...eventIds];
+}
+
 export async function fetchUserStats(address: string): Promise<UserStats> {
   const client = getSuiClient();
   const modulePrefix = `${PACKAGE_ID}::fossil`;
@@ -252,16 +332,33 @@ export async function fetchUserStats(address: string): Promise<UserStats> {
     finalizedMap[f.event_id] = f;
   }
 
-  const totalVotes   = userCommits.length;
-  const totalReveals = userReveals.length;
-  const totalStaked  = userCommits.reduce((sum, e) => {
-    const f = e.json as unknown as VoteCommittedFields;
-    return sum + (stakeByEvent[f.event_id] ?? 0);
-  }, 0);
-
-  const proposedClaims = allCreated.events.filter(
+  const proposedEvents = allCreated.events.filter(
     e => (e.json as unknown as EventCreatedFields).proposer === address
-  ).length;
+  );
+
+  const proposedClaims = proposedEvents.length;
+
+  // A proposer is also the first voter on their own claim.
+  // Count participation by unique claim ID so we never double-count.
+  const participatedEventIds = new Set<string>();
+
+  for (const e of proposedEvents) {
+    const f = e.json as unknown as EventCreatedFields;
+    participatedEventIds.add(f.event_id);
+  }
+
+  for (const e of userCommits) {
+    const f = e.json as unknown as VoteCommittedFields;
+    participatedEventIds.add(f.event_id);
+  }
+
+  const totalVotes = participatedEventIds.size;
+  const totalReveals = userReveals.length;
+
+  const totalStaked = Array.from(participatedEventIds).reduce(
+    (sum, eventId) => sum + (stakeByEvent[eventId] ?? 0),
+    0
+  );
 
   let wonVotes = 0;
   for (const e of userReveals) {

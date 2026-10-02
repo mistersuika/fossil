@@ -7,12 +7,21 @@ import { submitEvent } from '@/lib/wallet';
 import { getEventIdFromDigest } from '@/lib/sui';
 import { CATEGORIES, CATEGORY_INDEX } from '@/lib/types';
 
-async function waitForEventId(digest: string, maxAttempts = 8, delayMs = 1500): Promise<string | null> {
+async function waitForEventId(
+  digest: string,
+  maxAttempts = 8,
+  delayMs = 1500
+): Promise<string | null> {
   for (let i = 0; i < maxAttempts; i++) {
-    if (i > 0) await new Promise(r => setTimeout(r, delayMs));
+    if (i > 0) {
+      await new Promise((r) => setTimeout(r, delayMs));
+    }
+
     const id = await getEventIdFromDigest(digest);
+
     if (id) return id;
   }
+
   return null;
 }
 
@@ -20,52 +29,90 @@ interface SubmitFormProps {
   onSuccess?: (claimId: string) => void;
 }
 
-const CATEGORY_STYLES: Record<string, { active: string; idle: string }> = {
-  Science:    { active: 'bg-slate-700 text-white border-slate-700',    idle: 'bg-white text-[var(--muted)] border-[var(--border)] hover:border-slate-300 hover:text-slate-700' },
-  Economics:  { active: 'bg-amber-600 text-white border-amber-600',   idle: 'bg-white text-[var(--muted)] border-[var(--border)] hover:border-amber-300 hover:text-amber-700' },
-  Politics:   { active: 'bg-red-700 text-white border-red-700',       idle: 'bg-white text-[var(--muted)] border-[var(--border)] hover:border-red-300 hover:text-red-700' },
-  Society:    { active: 'bg-purple-700 text-white border-purple-700', idle: 'bg-white text-[var(--muted)] border-[var(--border)] hover:border-purple-300 hover:text-purple-700' },
-  Technology: { active: 'bg-emerald-700 text-white border-emerald-700', idle: 'bg-white text-[var(--muted)] border-[var(--border)] hover:border-emerald-300 hover:text-emerald-700' },
-};
-
 export function SubmitForm({ onSuccess }: SubmitFormProps) {
   const { connected, address } = useWallet();
+
   const [description, setDescription] = useState('');
   const [context, setContext] = useState('');
   const [category, setCategory] = useState<number>(0);
   const [stakeAmount, setStakeAmount] = useState('0.01');
-  const [votingDays, setVotingDays]   = useState('0');
-  const [votingHrs,  setVotingHrs]    = useState('1');
-  const [votingMins, setVotingMins]   = useState('0');
-  const [revealDays, setRevealDays]   = useState('0');
-  const [revealHrs,  setRevealHrs]    = useState('1');
-  const [revealMins, setRevealMins]   = useState('0');
+
+  const [votingDays, setVotingDays] = useState('0');
+  const [votingHrs, setVotingHrs] = useState('1');
+  const [votingMins, setVotingMins] = useState('0');
+
+  const [revealDays, setRevealDays] = useState('0');
+  const [revealHrs, setRevealHrs] = useState('1');
+  const [revealMins, setRevealMins] = useState('0');
+
   const [myVote, setMyVote] = useState<boolean>(true);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitStatus, setSubmitStatus] = useState<'idle' | 'signing' | 'indexing'>('idle');
+  const [submitStatus, setSubmitStatus] =
+    useState<'idle' | 'signing' | 'indexing'>('idle');
+
   const [error, setError] = useState<string | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [successDigest, setSuccessDigest] = useState<string | null>(null);
 
   const stake = parseFloat(stakeAmount) || 0;
-  const stakeError = stake < 0.01 ? 'Minimum stake is 0.01 SUI' : null;
+  const stakeError =
+    stake < 0.01 ? 'Minimum stake is 0.01 SUI' : null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!address) return;
 
-    if (!description.trim()) { setError('Claim cannot be empty'); return; }
-    if (description.length > 280) { setError('Claim too long (max 280 characters)'); return; }
-    if (context.length > 500) { setError('Context too long (max 500 characters)'); return; }
-    if (stake < 0.01) { setError('Minimum stake is 0.01 SUI'); return; }
+    if (!description.trim()) {
+      setError('Claim cannot be empty');
+      return;
+    }
 
-    const votingMinutes = (parseInt(votingDays)||0)*1440 + (parseInt(votingHrs)||0)*60 + (parseInt(votingMins)||0);
-    const revealMinutes = (parseInt(revealDays)||0)*1440 + (parseInt(revealHrs)||0)*60 + (parseInt(revealMins)||0);
+    if (description.length > 280) {
+      setError('Claim too long (max 280 characters)');
+      return;
+    }
 
-    if (votingMinutes < 1) { setError('Voting phase must last at least 1 minute'); return; }
-    if (revealMinutes < 1) { setError('Reveal phase must last at least 1 minute'); return; }
-    if (votingMinutes > 43200) { setError('Voting phase cannot exceed 30 days'); return; }
-    if (revealMinutes > 43200) { setError('Reveal phase cannot exceed 30 days'); return; }
+    if (context.length > 500) {
+      setError('Context too long (max 500 characters)');
+      return;
+    }
+
+    if (stake < 0.01) {
+      setError('Minimum stake is 0.01 SUI');
+      return;
+    }
+
+    const votingMinutes =
+      (parseInt(votingDays) || 0) * 1440 +
+      (parseInt(votingHrs) || 0) * 60 +
+      (parseInt(votingMins) || 0);
+
+    const revealMinutes =
+      (parseInt(revealDays) || 0) * 1440 +
+      (parseInt(revealHrs) || 0) * 60 +
+      (parseInt(revealMins) || 0);
+
+    if (votingMinutes < 1) {
+      setError('Voting phase must last at least 1 minute');
+      return;
+    }
+
+    if (revealMinutes < 1) {
+      setError('Reveal phase must last at least 1 minute');
+      return;
+    }
+
+    if (votingMinutes > 43200) {
+      setError('Voting phase cannot exceed 30 days');
+      return;
+    }
+
+    if (revealMinutes > 43200) {
+      setError('Reveal phase cannot exceed 30 days');
+      return;
+    }
 
     if (stake > 10 && !showConfirmation) {
       setShowConfirmation(true);
@@ -79,22 +126,36 @@ export function SubmitForm({ onSuccess }: SubmitFormProps) {
 
     try {
       const secret = generateSecret();
-      const commitHashBytes = generateCommitHash(address, myVote, secret);
-      const hashHex = Array.from(commitHashBytes, b => b.toString(16).padStart(2, '0')).join('');
-      const stakeInMist = BigInt(Math.floor(stake * 1_000_000_000));
+      const commitHashBytes = generateCommitHash(
+        address,
+        myVote,
+        secret
+      );
+
+      const hashHex = Array.from(
+        commitHashBytes,
+        (b) => b.toString(16).padStart(2, '0')
+      ).join('');
+
+      const stakeInMist = BigInt(
+        Math.floor(stake * 1_000_000_000)
+      );
+
       const commitMs = BigInt(votingMinutes * 60 * 1000);
       const revealMs = BigInt(revealMinutes * 60 * 1000);
 
-      // Save secret BEFORE submitting — if the browser crashes or indexing times out,
-      // RevealForm will recover it from this pending key.
       const pendingKey = `fossil_pending_${address}`;
-      localStorage.setItem(pendingKey, JSON.stringify({
-        vote: myVote,
-        secret,
-        hashHex,
-        address,
-        timestamp: Date.now(),
-      }));
+
+      localStorage.setItem(
+        pendingKey,
+        JSON.stringify({
+          vote: myVote,
+          secret,
+          hashHex,
+          address,
+          timestamp: Date.now(),
+        })
+      );
 
       const { digest } = await submitEvent(
         description,
@@ -106,40 +167,49 @@ export function SubmitForm({ onSuccess }: SubmitFormProps) {
         commitHashBytes
       );
 
-      // Transaction signed — now wait for the node to index it
       setSubmitStatus('indexing');
 
       const eventId = await waitForEventId(digest);
 
       if (eventId) {
-        // Migrate from pending key to the correct commit key
-        localStorage.setItem(`fossil_commit_${eventId}_${address}`, JSON.stringify({
-          eventId,
-          vote: myVote,
-          secret,
-          hashHex,
-          address,
-          digest,
-          timestamp: Date.now(),
-        }));
+        localStorage.setItem(
+          `fossil_commit_${eventId}_${address}`,
+          JSON.stringify({
+            eventId,
+            vote: myVote,
+            secret,
+            hashHex,
+            address,
+            digest,
+            timestamp: Date.now(),
+          })
+        );
+
         localStorage.removeItem(pendingKey);
         onSuccess?.(eventId);
       } else {
-        // Indexing timed out — secret is still safe under pendingKey.
-        // RevealForm will recover it when the user visits the event page.
         setSuccessDigest(digest);
       }
     } catch (err) {
       let errorMessage = 'Transaction failed';
+
       if (err instanceof Error) {
-        if (err.message.includes('insufficient funds') || err.message.includes('InsufficientCoinBalance')) {
-          errorMessage = `Insufficient SUI balance. You need at least ${stake} SUI.`;
-        } else if (err.message.includes('rejected') || err.message.includes('User rejected')) {
+        if (
+          err.message.includes('insufficient funds') ||
+          err.message.includes('InsufficientCoinBalance')
+        ) {
+          errorMessage =
+            `Insufficient SUI balance. You need at least ${stake} SUI.`;
+        } else if (
+          err.message.includes('rejected') ||
+          err.message.includes('User rejected')
+        ) {
           errorMessage = 'Transaction cancelled.';
         } else {
           errorMessage = err.message;
         }
       }
+
       setError(errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -147,280 +217,404 @@ export function SubmitForm({ onSuccess }: SubmitFormProps) {
     }
   };
 
-  // Fallback success screen if indexing timed out
   if (successDigest) {
     return (
-      <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] p-8 shadow-[var(--shadow-sm)] text-center">
-        <div className="w-12 h-12 rounded-full bg-[var(--yes-bg)] border border-[var(--yes-border)] flex items-center justify-center mx-auto mb-4">
-          <svg className="w-6 h-6 text-[var(--yes-light)]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-          </svg>
+      <section className="border-t border-[var(--border)] py-10">
+        <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--subtle)]">
+          Submitted
         </div>
-        <h3 className="text-lg font-bold text-[var(--foreground)] mb-2">Claim submitted</h3>
-        <p className="text-sm text-[var(--muted)] mb-4">
-          Your transaction was confirmed on-chain. Go to the home page to see your claim.
+
+        <h2 className="mt-3 text-[24px] font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+          Claim recorded
+        </h2>
+
+        <p className="mt-3 max-w-lg text-sm leading-relaxed text-[var(--muted)]">
+          The transaction was confirmed on-chain. The claim may take a
+          moment to appear in the public record.
         </p>
-        <p className="text-xs font-mono text-[var(--subtle)] bg-[var(--surface-raised)] rounded px-3 py-2 mb-6 break-all">
+
+        <p className="mt-6 max-w-xl break-all font-mono text-[9px] leading-relaxed text-[var(--subtle)]">
           {successDigest}
         </p>
+
         <a
-          href="/"
-          className="btn-primary inline-block"
+          href="/active"
+          className="inline-block mt-7 text-sm font-medium text-[var(--foreground)] underline underline-offset-4"
         >
-          Go to Home
+          View active claims
         </a>
-      </div>
+      </section>
     );
   }
 
   if (!connected) {
     return (
-      <div className="py-14 text-center bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] shadow-[var(--shadow-sm)]">
-        <p className="text-[var(--muted)] font-medium text-sm mb-4">Connect your wallet to submit a claim</p>
-      </div>
+      <section className="border-t border-[var(--border)] py-12">
+        <p className="text-sm text-[var(--muted)]">
+          Join the consensus to propose a claim.
+        </p>
+      </section>
     );
   }
 
   if (showConfirmation) {
     return (
-      <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] p-8 shadow-[var(--shadow-sm)] animate-scale-in">
-        <h3 className="text-xl font-bold text-[var(--foreground)] mb-1 tracking-tight">Confirm Your Claim</h3>
-        <p className="text-sm text-[var(--muted)] mb-6">Review before submitting</p>
-        <div className="bg-[var(--surface-raised)] rounded-[var(--radius-sm)] p-5 space-y-3 mb-6 text-sm border border-[var(--border)]">
-          <div className="flex justify-between gap-4">
-            <span className="text-[var(--muted)] flex-shrink-0">Claim</span>
-            <span className="text-[var(--foreground)] font-medium text-right">{description}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-[var(--muted)]">Your vote</span>
-            <span className={`font-bold ${myVote ? 'text-[var(--yes-light)]' : 'text-[var(--no-light)]'}`}>
-              {myVote ? 'YES — True' : 'NO — False'}
+      <section className="border-t border-[var(--border)] py-10">
+        <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--subtle)]">
+          Confirmation
+        </div>
+
+        <h2 className="mt-3 text-[26px] font-semibold tracking-[-0.03em] text-[var(--foreground)]">
+          Review your claim
+        </h2>
+
+        <div className="mt-8 border-y border-[var(--border)] divide-y divide-[var(--border)]">
+          <div className="grid grid-cols-[110px_1fr] gap-6 py-5">
+            <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[var(--subtle)]">
+              Claim
+            </span>
+
+            <span className="text-sm leading-relaxed text-[var(--foreground)]">
+              {description}
             </span>
           </div>
-          <div className="flex justify-between">
-            <span className="text-[var(--muted)]">Stake</span>
-            <span className="font-semibold text-[var(--foreground)]">{stake} SUI</span>
+
+          <div className="grid grid-cols-[110px_1fr] gap-6 py-5">
+            <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[var(--subtle)]">
+              Vote
+            </span>
+
+            <span className="text-sm text-[var(--foreground)]">
+              {myVote ? 'YES · True' : 'NO · False'}
+            </span>
           </div>
-          <p className="text-xs text-[var(--muted)] pt-2 border-t border-[var(--border)]">
-            This cannot be undone. You must confirm your vote in the confirmation phase to collect winnings.
-          </p>
+
+          <div className="grid grid-cols-[110px_1fr] gap-6 py-5">
+            <span className="font-mono text-[9px] uppercase tracking-[0.1em] text-[var(--subtle)]">
+              Stake
+            </span>
+
+            <span className="text-sm text-[var(--foreground)]">
+              {stake} SUI
+            </span>
+          </div>
         </div>
-        <div className="flex gap-3">
+
+        <p className="mt-6 text-xs leading-relaxed text-[var(--subtle)]">
+          This action cannot be undone. You will need to reveal your
+          committed vote during the reveal phase.
+        </p>
+
+        <div className="mt-8 flex items-center gap-4">
           <button
             type="button"
             onClick={() => setShowConfirmation(false)}
-            className="flex-1 py-2.5 border border-[var(--border)] text-[var(--foreground)] font-semibold rounded-[var(--radius-sm)] hover:border-[var(--border-strong)] transition-all text-sm"
+            className="px-5 py-2.5 text-sm text-[var(--foreground)] border border-[var(--border-strong)] rounded-[var(--radius-sm)] hover:bg-[var(--surface-raised)]"
           >
             Cancel
           </button>
+
           <button
             type="button"
             disabled={isSubmitting}
             onClick={handleSubmit as unknown as React.MouseEventHandler}
-            className="flex-1 py-2.5 bg-[var(--accent)] text-white font-semibold rounded-[var(--radius-sm)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-all text-sm flex items-center justify-center gap-2"
+            className="px-5 py-2.5 text-sm font-medium bg-[var(--foreground)] text-[var(--background)] rounded-[var(--radius-sm)] disabled:opacity-40"
           >
-            {isSubmitting ? (
-              <>
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Submitting...
-              </>
-            ) : 'Confirm & Submit'}
+            {isSubmitting ? 'Submitting…' : 'Confirm & submit'}
           </button>
         </div>
-      </div>
+      </section>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] p-8 shadow-[var(--shadow-sm)]">
+    <form onSubmit={handleSubmit}>
 
       {/* Category */}
-      <div>
-        <label className="block text-sm font-semibold text-[var(--foreground)] mb-3">
-          Category
+      <section className="border-t border-[var(--border)] py-8">
+        <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--subtle)]">
+          01 · Category
+        </div>
+
+        <div className="mt-5 flex flex-wrap gap-x-7 gap-y-3">
+          {CATEGORIES.map((cat, i) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setCategory(CATEGORY_INDEX[cat])}
+              className={`text-[10px] uppercase tracking-[0.1em] transition-colors ${
+                category === i
+                  ? 'text-[var(--foreground)] underline underline-offset-4'
+                  : 'text-[var(--subtle)] hover:text-[var(--foreground)]'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      {/* Statement */}
+      <section className="border-t border-[var(--border)] py-8">
+        <label
+          htmlFor="claim-statement"
+          className="font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--subtle)]"
+        >
+          02 · Claim statement
         </label>
-        <div className="flex flex-wrap gap-2">
-          {CATEGORIES.map((cat, i) => {
-            const colors = CATEGORY_STYLES[cat];
-            return (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setCategory(CATEGORY_INDEX[cat])}
-                className={`px-3.5 py-1.5 text-xs font-semibold rounded-full border transition-all ${
-                  category === i ? colors.active : colors.idle
+
+        <textarea
+          id="claim-statement"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          placeholder="State one clear, verifiable claim."
+          rows={4}
+          maxLength={290}
+          className={`mt-5 w-full resize-none bg-transparent border rounded-[var(--radius-sm)] px-4 py-4 text-[16px] leading-relaxed text-[var(--foreground)] placeholder:text-[var(--subtle)] outline-none ${
+            description.length > 280
+              ? 'border-[var(--no-light)]'
+              : 'border-[var(--border)] focus:border-[var(--border-strong)]'
+          }`}
+        />
+
+        <div className="mt-2 flex justify-end">
+          <span
+            className={`font-mono text-[9px] ${
+              description.length > 280
+                ? 'text-[var(--no-light)]'
+                : 'text-[var(--subtle)]'
+            }`}
+          >
+            {description.length}/280
+          </span>
+        </div>
+      </section>
+
+      {/* Context */}
+      <section className="border-t border-[var(--border)] py-8">
+        <label
+          htmlFor="claim-context"
+          className="font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--subtle)]"
+        >
+          03 · Context
+          <span className="ml-2 normal-case tracking-normal">
+            optional
+          </span>
+        </label>
+
+        <p className="mt-3 text-xs leading-relaxed text-[var(--subtle)]">
+          Add sources or background that can help participants evaluate
+          the statement.
+        </p>
+
+        <textarea
+          id="claim-context"
+          value={context}
+          onChange={(e) => setContext(e.target.value)}
+          placeholder="Sources, references or useful context…"
+          rows={4}
+          maxLength={500}
+          className="mt-5 w-full resize-none bg-transparent border border-[var(--border)] rounded-[var(--radius-sm)] px-4 py-4 text-sm leading-relaxed text-[var(--foreground)] placeholder:text-[var(--subtle)] outline-none focus:border-[var(--border-strong)]"
+        />
+
+        <div className="mt-2 flex justify-end">
+          <span className="font-mono text-[9px] text-[var(--subtle)]">
+            {context.length}/500
+          </span>
+        </div>
+      </section>
+
+      {/* Parameters */}
+      <section className="border-t border-[var(--border)] py-8">
+        <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--subtle)]">
+          04 · Parameters
+        </div>
+
+        <div className="mt-7 space-y-8">
+
+          <div>
+            <label className="block text-[13px] font-medium text-[var(--foreground)]">
+              Stake
+            </label>
+
+            <div className="mt-3 max-w-xs">
+              <div className="relative">
+                <input
+                  type="number"
+                  value={stakeAmount}
+                  onChange={(e) => setStakeAmount(e.target.value)}
+                  min="0.01"
+                  step="0.01"
+                  className={`w-full h-11 bg-transparent border rounded-[var(--radius-sm)] px-3 pr-14 text-sm text-[var(--foreground)] outline-none ${
+                    stakeError
+                      ? 'border-[var(--no-light)]'
+                      : 'border-[var(--border)] focus:border-[var(--border-strong)]'
+                  }`}
+                />
+
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[9px] text-[var(--subtle)]">
+                  SUI
+                </span>
+              </div>
+
+              <p
+                className={`mt-2 text-[11px] ${
+                  stakeError
+                    ? 'text-[var(--no-light)]'
+                    : 'text-[var(--subtle)]'
                 }`}
               >
-                {cat}
-              </button>
+                {stakeError || 'Minimum 0.01 SUI'}
+              </p>
+            </div>
+          </div>
+
+          {(['Voting', 'Reveal'] as const).map((label) => {
+            const days =
+              label === 'Voting' ? votingDays : revealDays;
+
+            const hrs =
+              label === 'Voting' ? votingHrs : revealHrs;
+
+            const mins =
+              label === 'Voting' ? votingMins : revealMins;
+
+            const setD =
+              label === 'Voting'
+                ? setVotingDays
+                : setRevealDays;
+
+            const setH =
+              label === 'Voting'
+                ? setVotingHrs
+                : setRevealHrs;
+
+            const setM =
+              label === 'Voting'
+                ? setVotingMins
+                : setRevealMins;
+
+            return (
+              <div key={label}>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-[13px] font-medium text-[var(--foreground)]">
+                    {label} phase
+                  </span>
+
+                  <span className="text-[10px] text-[var(--subtle)]">
+                    max 30 days
+                  </span>
+                </div>
+
+                <div className="mt-3 grid grid-cols-3 gap-3 max-w-xl">
+                  {[
+                    {
+                      val: days,
+                      set: setD,
+                      max: 30,
+                      suffix: 'd',
+                    },
+                    {
+                      val: hrs,
+                      set: setH,
+                      max: 23,
+                      suffix: 'h',
+                    },
+                    {
+                      val: mins,
+                      set: setM,
+                      max: 59,
+                      suffix: 'm',
+                    },
+                  ].map(({ val, set, max, suffix }) => (
+                    <div key={suffix} className="relative">
+                      <input
+                        type="number"
+                        value={val}
+                        onChange={(e) => set(e.target.value)}
+                        min="0"
+                        max={max}
+                        className="w-full h-11 bg-transparent border border-[var(--border)] rounded-[var(--radius-sm)] pl-3 pr-9 text-sm text-[var(--foreground)] outline-none focus:border-[var(--border-strong)]"
+                      />
+
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 font-mono text-[9px] text-[var(--subtle)]">
+                        {suffix}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             );
           })}
         </div>
-      </div>
+      </section>
 
-      {/* Claim text */}
-      <div>
-        <label className="block text-sm font-semibold text-[var(--foreground)] mb-2">
-          Claim Statement
-        </label>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="The Renaissance marked the birth of modern science"
-          className={`w-full px-4 py-3 bg-[var(--background)] border rounded-[var(--radius-sm)] transition-all text-[var(--foreground)] placeholder-[var(--subtle)] focus:outline-none focus:ring-2 resize-none text-sm ${
-            description.length > 280
-              ? 'border-[var(--no-light)] focus:ring-red-100'
-              : 'border-[var(--border)] focus:border-[var(--border-strong)] focus:ring-gray-100'
-          }`}
-          rows={3}
-          maxLength={290}
-        />
-        <p className={`text-xs mt-1.5 font-medium ${description.length > 280 ? 'text-[var(--no-light)]' : 'text-[var(--muted)]'}`}>
-          {description.length}/280
+      {/* Vote */}
+      <section className="border-t border-[var(--border)] py-8">
+        <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--subtle)]">
+          05 · Initial vote
+        </div>
+
+        <p className="mt-3 max-w-lg text-xs leading-relaxed text-[var(--subtle)]">
+          The proposer also participates in the consensus and commits the
+          first vote.
         </p>
-      </div>
 
-      {/* Context */}
-      <div>
-        <label className="block text-sm font-semibold text-[var(--foreground)] mb-2">
-          Context{' '}
-          <span className="font-normal text-[var(--muted)] text-xs">(optional — sources, background)</span>
-        </label>
-        <textarea
-          value={context}
-          onChange={(e) => setContext(e.target.value)}
-          placeholder="Provide sources or context that help voters make an informed decision..."
-          className="w-full px-4 py-3 bg-[var(--background)] border border-[var(--border)] rounded-[var(--radius-sm)] text-[var(--foreground)] placeholder-[var(--subtle)] focus:outline-none focus:border-[var(--border-strong)] focus:ring-2 focus:ring-gray-100 transition-all resize-none text-sm"
-          rows={3}
-          maxLength={500}
-        />
-        <p className="text-xs mt-1.5 text-[var(--muted)] font-medium">{context.length}/500</p>
-      </div>
-
-      {/* Stake */}
-      <div>
-        <label className="block text-sm font-semibold text-[var(--foreground)] mb-2">
-          Stake (SUI)
-        </label>
-        <input
-          type="number"
-          value={stakeAmount}
-          onChange={(e) => setStakeAmount(e.target.value)}
-          min="0.01"
-          step="0.01"
-          className={`w-full px-4 py-2.5 bg-[var(--background)] border rounded-[var(--radius-sm)] focus:outline-none focus:ring-2 text-[var(--foreground)] transition-all text-sm ${
-            stakeError ? 'border-[var(--no-light)] focus:ring-red-100' : 'border-[var(--border)] focus:border-[var(--border-strong)] focus:ring-gray-100'
-          }`}
-        />
-        {stakeError
-          ? <p className="text-xs mt-1.5 text-[var(--no-light)] font-medium">{stakeError}</p>
-          : <p className="text-xs mt-1.5 text-[var(--muted)]">Min. 0.01 SUI</p>
-        }
-      </div>
-
-      {/* Durations */}
-      {(['Voting', 'Reveal'] as const).map((label) => {
-        const days  = label === 'Voting' ? votingDays  : revealDays;
-        const hrs   = label === 'Voting' ? votingHrs   : revealHrs;
-        const mins  = label === 'Voting' ? votingMins  : revealMins;
-        const setD  = label === 'Voting' ? setVotingDays  : setRevealDays;
-        const setH  = label === 'Voting' ? setVotingHrs   : setRevealHrs;
-        const setM  = label === 'Voting' ? setVotingMins  : setRevealMins;
-        return (
-          <div key={label}>
-            <label className="block text-sm font-semibold text-[var(--foreground)] mb-2">
-              {label} phase duration
-              <span className="font-normal text-[var(--muted)] text-xs ml-2">max 30 days</span>
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              {[
-                { val: days, set: setD, max: 30,  suffix: 'd' },
-                { val: hrs,  set: setH, max: 23,  suffix: 'h' },
-                { val: mins, set: setM, max: 59,  suffix: 'm' },
-              ].map(({ val, set, max, suffix }) => (
-                <div key={suffix} className="relative">
-                  <input
-                    type="number"
-                    value={val}
-                    onChange={(e) => set(e.target.value)}
-                    min="0"
-                    max={max}
-                    className="w-full pl-3 pr-8 py-2.5 bg-[var(--background)] border border-[var(--border)] rounded-[var(--radius-sm)] text-[var(--foreground)] focus:outline-none focus:border-[var(--border-strong)] focus:ring-2 focus:ring-gray-100 transition-all text-sm"
-                  />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[var(--subtle)] font-semibold pointer-events-none">{suffix}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })}
-
-      {/* Your vote */}
-      <div>
-        <label className="block text-sm font-semibold text-[var(--foreground)] mb-3">
-          Your Vote
-        </label>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="mt-6 grid grid-cols-2 gap-3 max-w-xl">
           <button
             type="button"
             onClick={() => setMyVote(true)}
-            className={`py-4 text-sm font-bold rounded-[var(--radius-sm)] border-2 transition-all flex items-center justify-center gap-2 ${
+            className={`h-12 border rounded-[var(--radius-sm)] text-sm font-medium transition-colors ${
               myVote
-                ? 'bg-[var(--yes)] text-white border-[var(--yes)]'
-                : 'bg-[var(--yes-bg)] border-[var(--yes-border)] hover:border-[var(--yes)]'
+                ? 'border-[var(--foreground)] text-[var(--foreground)] bg-[var(--surface-raised)]'
+                : 'border-[var(--border)] text-[var(--subtle)] hover:text-[var(--foreground)]'
             }`}
-            style={{ color: myVote ? 'white' : 'var(--yes)' }}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-            </svg>
-            YES
+            True
           </button>
+
           <button
             type="button"
             onClick={() => setMyVote(false)}
-            className={`py-4 text-sm font-bold rounded-[var(--radius-sm)] border-2 transition-all flex items-center justify-center gap-2 ${
+            className={`h-12 border rounded-[var(--radius-sm)] text-sm font-medium transition-colors ${
               !myVote
-                ? 'bg-[var(--no)] text-white border-[var(--no)]'
-                : 'bg-[var(--no-bg)] border-[var(--no-border)] hover:border-[var(--no)]'
+                ? 'border-[var(--foreground)] text-[var(--foreground)] bg-[var(--surface-raised)]'
+                : 'border-[var(--border)] text-[var(--subtle)] hover:text-[var(--foreground)]'
             }`}
-            style={{ color: !myVote ? 'white' : 'var(--no)' }}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-            NO
+            False
           </button>
         </div>
-      </div>
+      </section>
 
+      {/* Error */}
       {error && (
-        <div className="p-4 rounded-[var(--radius-sm)] bg-[var(--no-bg)] border border-[var(--no-border)] text-[var(--no-light)] text-sm font-medium">
-          {error}
+        <div className="border-t border-[var(--border)] py-5">
+          <p className="text-sm text-[var(--no-light)]">
+            {error}
+          </p>
         </div>
       )}
 
-      <button
-        type="submit"
-        disabled={!description || !!stakeError || isSubmitting}
-        className="w-full py-3.5 bg-[var(--accent)] text-white font-bold text-sm rounded-[var(--radius-sm)] hover:bg-[var(--accent-hover)] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-      >
-        {submitStatus === 'signing' ? (
-          <>
-            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            Waiting for signature...
-          </>
-        ) : submitStatus === 'indexing' ? (
-          <>
-            <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-            Confirming on-chain...
-          </>
-        ) : `Submit Claim — ${stake.toFixed(2)} SUI`}
-      </button>
+      {/* Submit */}
+      <section className="border-t border-[var(--border)] pt-8 pb-14">
+        <button
+          type="submit"
+          disabled={!description || !!stakeError || isSubmitting}
+          className="h-12 px-6 bg-[var(--foreground)] text-[var(--background)] text-sm font-medium rounded-[var(--radius-sm)] disabled:opacity-30 disabled:cursor-not-allowed transition-opacity hover:opacity-90"
+        >
+          {submitStatus === 'signing'
+            ? 'Waiting for signature…'
+            : submitStatus === 'indexing'
+              ? 'Confirming on-chain…'
+              : `Propose claim · ${stake.toFixed(2)} SUI`}
+        </button>
 
-      <p className="text-xs text-[var(--subtle)] text-center">
-        After voting closes, you will need to confirm your vote to collect potential winnings.
-      </p>
+        <p className="mt-4 max-w-lg text-[11px] leading-relaxed text-[var(--subtle)]">
+          After voting closes, your committed vote must be revealed during
+          the reveal phase.
+        </p>
+      </section>
     </form>
   );
 }

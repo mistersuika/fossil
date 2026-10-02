@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useWallet } from '@/contexts/WalletContext';
 import { generateSecret, generateCommitHash } from '@/lib/hash';
 import { commitVote } from '@/lib/wallet';
@@ -20,10 +20,35 @@ export function CommitForm({ eventId, stakeAmount, currentCommits = 0, poolSui =
   const [error, setError] = useState<string | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
+  const [hasVoted, setHasVoted] = useState(false);
 
   const stakeInSui = stakeAmount / 1_000_000_000;
 
+  useEffect(() => {
+    if (!address || typeof window === 'undefined') {
+      setHasVoted(false);
+      return;
+    }
+
+    const stored = localStorage.getItem(
+      `fossil_commit_${eventId}_${address}`
+    );
+
+    setHasVoted(!!stored);
+  }, [address, eventId]);
+
   const handleVote = async (selectedVote: boolean) => {
+    if (!address) return;
+
+    const existingCommit = localStorage.getItem(
+      `fossil_commit_${eventId}_${address}`
+    );
+
+    if (existingCommit) {
+      setHasVoted(true);
+      return;
+    }
+
     setVote(selectedVote);
     setError(null);
 
@@ -77,9 +102,19 @@ export function CommitForm({ eventId, stakeAmount, currentCommits = 0, poolSui =
         timestamp: Date.now(),
       }));
 
+      setHasVoted(true);
       onSuccess?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Transaction failed');
+      localStorage.removeItem(
+        `fossil_commit_${eventId}_${address}`
+      );
+
+      setHasVoted(false);
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Transaction failed'
+      );
       setVote(null);
     } finally {
       setIsSubmitting(false);
@@ -143,6 +178,24 @@ export function CommitForm({ eventId, stakeAmount, currentCommits = 0, poolSui =
     );
   }
 
+  if (hasVoted) {
+    return (
+      <div className="border-t border-[var(--border)] pt-8">
+        <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--subtle)]">
+          Participation
+        </div>
+
+        <h3 className="mt-4 text-[21px] md:text-[23px] font-semibold tracking-[-0.025em] text-[var(--foreground)]">
+          Voted
+        </h3>
+
+        <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-[var(--muted)]">
+          Your vote is committed and sealed until the reveal phase.
+        </p>
+      </div>
+    );
+  }
+
   // Calculator
   const totalAfterYou = poolSui + stakeInSui;
   const assumedVoters = Math.max(currentCommits + 1, 2);
@@ -151,67 +204,61 @@ export function CommitForm({ eventId, stakeAmount, currentCommits = 0, poolSui =
   const yourGain = (losingPool * 0.98) / winningVoters;
 
   return (
-    <div className="bg-[var(--surface)] rounded-[var(--radius)] border border-[var(--border)] p-8 shadow-[var(--shadow-sm)] animate-slide-up">
-      <h3 className="text-xl font-bold text-[var(--foreground)] mb-1 tracking-tight">Cast Your Vote</h3>
-      <p className="text-sm text-[var(--muted)] mb-6">
+    <div className="border-t border-[var(--border)] pt-8 animate-slide-up">
+      <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[var(--subtle)]">
+        Participation
+      </div>
+
+      <h3 className="mt-4 text-[21px] md:text-[23px] font-semibold tracking-[-0.025em] text-[var(--foreground)]">
+        Cast your vote
+      </h3>
+
+      <p className="mt-2 text-[13px] text-[var(--muted)]">
         Stake {stakeInSui} SUI · Winners share the opposing pool
       </p>
 
       {error && (
-        <div className="p-4 rounded-[var(--radius-sm)] bg-[var(--no-bg)] border border-[var(--no-border)] text-[var(--no-light)] text-sm font-medium mb-5">
+        <div className="mt-6 border-t border-b border-[var(--no-border)] py-4 text-[13px] text-[var(--no-light)]">
           {error}
         </div>
       )}
 
-      {/* Vote buttons */}
-      <div className="grid grid-cols-2 gap-3 mb-5">
+      <div className="mt-7 grid grid-cols-2 gap-3 max-w-2xl">
         <button
           type="button"
           disabled={isSubmitting}
           onClick={() => handleVote(true)}
-          className="py-5 rounded-[var(--radius-sm)] text-sm font-bold bg-[var(--yes-bg)] border-2 border-[var(--yes-border)] hover:bg-[var(--yes)] hover:text-white hover:border-[var(--yes)] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-          style={{ color: isSubmitting && vote === true ? 'white' : 'var(--yes)' }}
+          className={`h-14 border rounded-[var(--radius-sm)] text-[12px] font-medium uppercase tracking-[0.08em] transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+            vote === true
+              ? 'border-[var(--foreground)] text-[var(--foreground)] bg-[var(--surface-raised)]'
+              : 'border-[var(--border)] text-[var(--foreground)] hover:border-[var(--border-strong)]'
+          }`}
         >
-          {isSubmitting && vote === true ? (
-            <>
-              <span className="w-4 h-4 border-2 border-green-200 border-t-white rounded-full animate-spin" />
-              Voting...
-            </>
-          ) : (
-            <>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
-              </svg>
-              YES
-            </>
-          )}
+          {isSubmitting && vote === true
+            ? 'Voting…'
+            : 'True'}
         </button>
+
         <button
           type="button"
           disabled={isSubmitting}
           onClick={() => handleVote(false)}
-          className="py-5 rounded-[var(--radius-sm)] text-sm font-bold bg-[var(--no-bg)] border-2 border-[var(--no-border)] hover:bg-[var(--no)] hover:text-white hover:border-[var(--no)] disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
-          style={{ color: isSubmitting && vote === false ? 'white' : 'var(--no)' }}
+          className={`h-14 border rounded-[var(--radius-sm)] text-[12px] font-medium uppercase tracking-[0.08em] transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+            vote === false
+              ? 'border-[var(--foreground)] text-[var(--foreground)] bg-[var(--surface-raised)]'
+              : 'border-[var(--border)] text-[var(--foreground)] hover:border-[var(--border-strong)]'
+          }`}
         >
-          {isSubmitting && vote === false ? (
-            <>
-              <span className="w-4 h-4 border-2 border-red-200 border-t-white rounded-full animate-spin" />
-              Voting...
-            </>
-          ) : (
-            <>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-              NO
-            </>
-          )}
+          {isSubmitting && vote === false
+            ? 'Voting…'
+            : 'False'}
         </button>
       </div>
 
-      <p className="text-xs text-[var(--subtle)] text-center mt-4">
-        Your vote is sealed until the confirmation phase. You must confirm it to collect winnings.
+      <p className="mt-5 max-w-2xl text-[11px] leading-relaxed text-[var(--subtle)]">
+        Your vote is sealed until the reveal phase. You must reveal it to collect potential winnings.
       </p>
     </div>
   );
+
 }
